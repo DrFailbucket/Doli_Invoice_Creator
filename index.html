@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doli Invoice Creator</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div class="brand"><span class="brand-mark">DI</span><span>Doli Invoice Creator</span></div>
+    <div class="toolbar-group">
+      <label for="zoom-select">Zoom</label>
+      <select id="zoom-select">
+        <option value="25">25 %</option><option value="50">50 %</option><option value="75">75 %</option>
+        <option value="10">10 %</option><option value="100" selected>100 %</option><option value="125">125 %</option><option value="150">150 %</option><option value="200">200 %</option><option value="300">300 %</option><option value="400">400 %</option><option value="500">500 %</option><option value="600">600 %</option>
+      </select>
+      <button id="fit-button" class="button button-subtle">An Fenster anpassen</button>
+      <button id="undo-button" class="button icon-button" title="Rückgängig · Ctrl + Z" disabled>↶</button>
+      <button id="redo-button" class="button icon-button" title="Wiederholen · Ctrl + Y / Ctrl + Shift + Z" disabled>↷</button>
+    </div>
+    <div class="toolbar-actions">
+      <label class="toolbar-check"><input id="grid-toggle" type="checkbox" checked> Raster</label><label>Raster<select id="grid-size"><option value="0.5">0,5 mm</option><option value="1" selected>1 mm</option><option value="2">2 mm</option><option value="5">5 mm</select></label><label class="toolbar-check"><input id="snap-toggle" type="checkbox" checked> Snap</label><button id="background-button" class="button button-subtle">Hintergrund</button><input id="background-input" type="file" accept="image/png,image/jpeg" hidden>
+      <button id="import-button" class="button button-subtle">Projekt laden</button>
+      <button id="export-button" class="button button-primary">Projekt exportieren</button>
+      <input id="project-input" type="file" accept="application/json" hidden>
+    </div>
+  </header>
+
+  <nav class="template-tabs" aria-label="Seitentemplates">
+    <button type="button" data-template="single" class="active"><span class="template-status">○</span>Einseitig</button>
+    <button type="button" data-template="first"><span class="template-status">○</span>Erste Seite</button>
+    <button type="button" data-template="middle"><span class="template-status">○</span>Mittelseite</button>
+    <button type="button" data-template="last"><span class="template-status">○</span>Endseite</button>
+  </nav>
+
+  <main class="workspace">
+    <aside class="sidebar library-panel">
+      <div class="panel-heading"><span>Elementbibliothek</span><span class="eyebrow">PHASE 1</span></div>
+      <button id="add-text-button" class="library-button"><span class="plus">+</span><span><strong>Textfeld</strong><small>Freies Text-Element</small></span></button>
+      <div class="panel-divider"></div><div class="panel-heading subheading"><span>Rechnungsfelder</span></div>
+      <button class="library-button core-button" data-core-id="invoice_ref"><span class="core-badge">Core</span><span><strong>Rechnungsnummer</strong><small>invoice_ref · feste ID</small></span></button>
+      <button class="library-button core-button" data-core-id="invoice_date"><span class="core-badge">Core</span><span><strong>Rechnungsdatum</strong><small>invoice_date · feste ID</small></span></button>
+      <button class="library-button core-button table-button" data-core-id="invoice_lines"><span class="core-badge">Core</span><span><strong>Positionstabelle</strong><small>invoice_lines · feste ID</small></span></button>
+      <div class="element-section"><div class="panel-heading subheading"><span>Elemente</span><span id="element-count" class="count-badge">0</span></div><div id="element-list" class="element-list"></div></div>
+    </aside>
+
+    <section class="canvas-area">
+      <div class="canvas-toolbar"><span id="page-size-label">A4 · 210 × 297 mm</span><span id="zoom-label">100 %</span></div>
+      <div id="toast-region" class="toast-region" aria-live="polite"></div>
+      <div id="canvas-viewport" class="canvas-viewport">
+        <div id="canvas-stage" class="canvas-stage">
+          <div id="page" class="page" tabindex="0" aria-label="A4-Arbeitsfläche">
+          <div id="grid-layer" class="grid-layer" aria-hidden="true"></div>
+          <img id="background-image" alt="" hidden>
+          <div id="elements-layer" class="elements-layer"></div>
+          <div id="placement-ghost" class="placement-ghost" hidden></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="sidebar properties-panel">
+      <div class="panel-heading"><span>Eigenschaften</span><span id="selection-label" class="eyebrow">NICHTS AUSGEWÄHLT</span></div>
+      <div id="empty-properties" class="empty-state">Wähle ein Element aus,<br>um es zu bearbeiten.</div>
+      <form id="properties-form" class="properties-form" hidden>
+        <div class="field-grid two"><label>Name<input id="property-name" type="text"></label><label>ID<input id="property-id" type="text"></label></div>
+        <div class="field-grid four"><label>X <span>mm</span><input id="property-x" type="number" step="0.1"></label><label>Y <span>mm</span><input id="property-y" type="number" step="0.1"></label><label>Breite <span>mm</span><input id="property-width" type="number" step="0.1" min="1"></label><label>Höhe <span>mm</span><input id="property-height" type="number" step="0.1" min="1"></label></div>
+        <div class="field-grid two"><label>Schriftart<select id="property-font-family"><option>Arial</option><option>Helvetica</option><option>Georgia</option><option>Verdana</option><option>Courier New</option></select></label><label>Schriftgröße <span>pt</span><input id="property-font-size" type="number" step="0.5" min="1"></label></div>
+        <div class="field-group"><span class="field-title">Schriftschnitt</span><div class="segmented"><label><input type="radio" name="font-weight" value="normal">Normal</label><label><input type="radio" name="font-weight" value="bold">Fett</label></div></div>
+        <div class="field-group"><span class="field-title">Ausrichtung</span><div class="segmented"><label><input type="radio" name="align" value="left">Links</label><label><input type="radio" name="align" value="center">Zentriert</label><label><input type="radio" name="align" value="right">Rechts</label></div></div>
+        <div class="field-grid two"><label>Textfarbe<input id="property-color" type="color"></label><label>Mehrzeilig<select id="property-multiline"><option value="false">Nein</option><option value="true">Ja</option></select></label></div>
+        <label>Testwert<textarea id="property-test-value" rows="3"></textarea></label>
+        <button id="delete-button" type="button" class="button danger-button">Element löschen</button>
+      </form>
+        <form id="table-properties" class="properties-form table-properties" hidden><input id="table-padding" type="hidden"><div class="panel-heading subheading"><span>Allgemein</span></div><div class="field-grid two"><label>Name<input id="table-name" type="text" readonly></label><label>ID<input id="table-id" type="text" readonly></label></div><div class="field-grid four"><label>X <span>mm</span><input id="table-x" type="number" step="0.1"></label><label>Y <span>mm</span><input id="table-y" type="number" step="0.1"></label><label>Breite <span>mm</span><input id="table-width" type="number" step="0.1"></label><label>Höhe <span>mm</span><input id="table-height" type="number" step="0.1"></label></div><div class="panel-heading subheading"><span>Zeilen</span></div><div class="field-group"><span class="field-title">Zeilenmodus</span><div class="segmented"><label><input type="radio" name="table-row-mode" value="fixed">Festes Raster</label><label><input type="radio" name="table-row-mode" value="dynamic">Dynamisch</label></div></div><div class="field-grid three"><label>Zeilenhöhe <span>mm</span><input id="table-row-height" type="number" min="0.1" step="0.1"></label><label>Mindesthöhe <span>mm</span><input id="table-min-row-height" type="number" min="0.1" step="0.1"></label><label>Max. Standardzeilen<input id="table-max-rows" type="text" readonly></label></div><div class="field-grid three"><label>Innenabstand X <span>mm</span><input id="table-padding-horizontal" type="number" min="0" step="0.1"></label><label>Innenabstand Y <span>mm</span><input id="table-padding-vertical" type="number" min="0" step="0.1"></label><label>Line Height<input id="table-line-height" type="number" min="1" step="0.1"></label></div><label>Text-Y-Offset <span>mm</span><input id="table-offset" type="number" min="-5" max="5" step="0.1"></label><label>Vertikale Ausrichtung<select id="table-vertical-align"><option value="top">Oben</option><option value="middle">Mitte</option><option value="bottom">Unten</option></select></label><label class="check-label"><input id="table-test-data" type="checkbox"> Testdaten anzeigen</label><div id="table-validation" class="table-validation"></div><div id="table-layout-preview" class="table-layout-preview"></div><div class="panel-heading subheading"><span>Spalten</span></div><div id="table-columns" class="table-columns"></div><button id="table-delete-button" type="button" class="button danger-button">Element löschen</button></form>
+      <div id="multi-properties" class="multi-properties" hidden><strong>Mehrfachauswahl</strong><span id="multi-count"></span><span>Referenz: <b id="multi-anchor"></b></span><span class="field-title">Ausrichten</span><div class="alignment-grid"><button type="button" data-align="left" title="Links ausrichten">←</button><button type="button" data-align="centerX" title="Horizontal zentrieren">↔</button><button type="button" data-align="right" title="Rechts ausrichten">→</button><button type="button" data-align="top" title="Oben ausrichten">↑</button><button type="button" data-align="centerY" title="Vertikal zentrieren">↕</button><button type="button" data-align="bottom" title="Unten ausrichten">↓</button></div><span class="field-title">Größe</span><div class="alignment-grid"><button type="button" data-align="width" title="Gleiche Breite">W</button><button type="button" data-align="height" title="Gleiche Höhe">H</button><button type="button" data-align="size" title="Gleiche Größe">WH</button></div><span class="field-title">Verteilen</span><div class="alignment-grid"><button type="button" data-distribute="horizontal" title="Horizontal gleichmäßig verteilen">H</button><button type="button" data-distribute="vertical" title="Vertikal gleichmäßig verteilen">V</button></div><span class="field-title">Abstand</span><div class="spacing-row"><button type="button" data-spacing-step="-0.1" title="Abstand um 0,1 mm verringern">−</button><input id="spacing-value" type="number" min="0" step="0.1" value="5"><span>mm</span><button type="button" data-spacing-step="0.1" title="Abstand um 0,1 mm erhöhen">+</button></div><div class="alignment-grid"><button type="button" data-spacing-apply="horizontal" title="Horizontalen Abstand anwenden">H anwenden</button><button type="button" data-spacing-apply="vertical" title="Vertikalen Abstand anwenden">V anwenden</button></div></div>
+      <section class="pagination-panel">
+        <div class="panel-heading subheading"><span>Pagination</span></div>
+        <label>Testpositionen<input id="pagination-row-count" type="number" min="1" max="500" step="1" value="25"></label>
+        <div id="pagination-preview" class="pagination-preview"></div>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="js/app.js?v=30"></script>
+</body>
+</html>
