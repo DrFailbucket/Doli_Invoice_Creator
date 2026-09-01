@@ -1,5 +1,7 @@
 # Doli Invoice Creator
 
+[OPEN EDITOR](https://drfailbucket.github.io/Doli_Invoice_Creator/)
+
 Lokales Open-Source-Browser-Tool zum visuellen Erstellen von Layout-Mappings für Dolibarr-PDF-Dokumente.
 
 ## Entwicklungsstand
