@@ -15,12 +15,15 @@
         <option value="25">25 %</option><option value="50">50 %</option><option value="75">75 %</option>
         <option value="10">10 %</option><option value="100" selected>100 %</option><option value="125">125 %</option><option value="150">150 %</option><option value="200">200 %</option><option value="300">300 %</option><option value="400">400 %</option><option value="500">500 %</option><option value="600">600 %</option>
       </select>
+      <span class="document-type-indicator">Typ: <strong id="current-document-type">invoice</strong></span>
+      <button id="change-document-type-button" class="button button-subtle">Dokumenttyp ändern</button>
       <button id="fit-button" class="button button-subtle">An Fenster anpassen</button>
       <button id="undo-button" class="button icon-button" title="Rückgängig · Ctrl + Z" disabled>↶</button>
       <button id="redo-button" class="button icon-button" title="Wiederholen · Ctrl + Y / Ctrl + Shift + Z" disabled>↷</button>
     </div>
     <div class="toolbar-actions">
       <label class="toolbar-check"><input id="grid-toggle" type="checkbox" checked> Raster</label><label>Raster<select id="grid-size"><option value="0.5">0,5 mm</option><option value="1" selected>1 mm</option><option value="2">2 mm</option><option value="5">5 mm</select></label><label class="toolbar-check"><input id="snap-toggle" type="checkbox" checked> Snap</label><button id="background-button" class="button button-subtle">Hintergrund</button><input id="background-input" type="file" accept="image/png,image/jpeg" hidden>
+      <button id="new-project-button" class="button button-subtle">Neues Projekt</button>
       <button id="import-button" class="button button-subtle">Projekt laden</button>
       <button id="export-button" class="button button-primary">Projekt exportieren</button>
       <input id="project-input" type="file" accept="application/json" hidden>
@@ -39,9 +42,18 @@
       <div class="panel-heading"><span>Elementbibliothek</span><span class="eyebrow">PHASE 1</span></div>
       <button id="add-text-button" class="library-button"><span class="plus">+</span><span><strong>Textfeld</strong><small>Freies Text-Element</small></span></button>
       <div class="panel-divider"></div><div class="panel-heading subheading"><span>Rechnungsfelder</span></div>
-      <button class="library-button core-button" data-core-id="invoice_ref"><span class="core-badge">Core</span><span><strong>Rechnungsnummer</strong><small>invoice_ref · feste ID</small></span></button>
-      <button class="library-button core-button" data-core-id="invoice_date"><span class="core-badge">Core</span><span><strong>Rechnungsdatum</strong><small>invoice_date · feste ID</small></span></button>
+      <button class="library-button core-button" data-core-id="object_ref"><span class="core-badge">Core</span><span><strong>Dokumentnummer</strong><small>object_ref · feste ID</small></span></button>
+      <button class="library-button core-button" data-core-id="object_date"><span class="core-badge">Core</span><span><strong>Dokumentdatum</strong><small>object_date · feste ID</small></span></button>
       <button class="library-button core-button table-button" data-core-id="invoice_lines"><span class="core-badge">Core</span><span><strong>Positionstabelle</strong><small>invoice_lines · feste ID</small></span></button>
+      <section class="field-library-section">
+        <div class="panel-heading subheading"><span>Feldbibliothek</span><span id="field-library-count" class="count-badge">0</span></div>
+        <div class="field-library-scope" role="group" aria-label="Feldbibliothek Umfang">
+          <label><input type="radio" name="field-library-scope" value="document" checked>Für Dokumenttyp</label>
+          <label><input type="radio" name="field-library-scope" value="all">Alle Felder</label>
+        </div>
+        <label class="field-library-search"><span>Suche</span><input id="field-library-search" type="search" autocomplete="off" placeholder="Label oder ID"></label>
+        <div id="field-library" class="field-library"></div>
+      </section>
       <div class="element-section"><div class="panel-heading subheading"><span>Elemente</span><span id="element-count" class="count-badge">0</span></div><div id="element-list" class="element-list"></div></div>
     </aside>
 
@@ -82,6 +94,43 @@
       </section>
     </aside>
   </main>
-  <script type="module" src="js/app.js?v=30"></script>
+  <dialog id="new-project-dialog" class="modal-dialog">
+    <form id="new-project-form" class="modal-form" method="dialog">
+      <div class="modal-heading">
+        <strong id="document-type-dialog-title">Neues Projekt</strong>
+        <span id="document-type-dialog-subtitle">Dokumenttyp wählen</span>
+      </div>
+      <div class="document-type-options" role="radiogroup" aria-label="Dokumenttyp">
+        <label><input type="radio" name="new-project-document-type" value="invoice" checked><span><strong>Rechnung</strong><small>invoice</small></span></label>
+        <label><input type="radio" name="new-project-document-type" value="proposal"><span><strong>Angebot</strong><small>proposal</small></span></label>
+        <label><input type="radio" name="new-project-document-type" value="order"><span><strong>Auftrag</strong><small>order</small></span></label>
+        <label><input type="radio" name="new-project-document-type" value="shipment"><span><strong>Lieferung / Versand</strong><small>shipment</small></span></label>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="button button-subtle" value="cancel">Abbrechen</button>
+        <button id="document-type-dialog-confirm" type="submit" class="button button-primary" value="confirm">Erstellen</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="first-run-dialog" class="modal-dialog">
+    <form id="first-run-form" class="modal-form" method="dialog">
+      <div class="modal-heading">
+        <strong>Editor einrichten</strong>
+        <span>Globale Einstellungen</span>
+      </div>
+      <div class="setup-options">
+        <label>Rastergröße <span>mm</span><input id="setup-grid-mm" type="number" min="0.1" step="0.1"></label>
+        <label class="setup-check"><input id="setup-snap-to-grid" type="checkbox">Am Raster ausrichten</label>
+        <label class="setup-check"><input id="setup-grid-visible" type="checkbox">Raster anzeigen</label>
+        <label class="setup-check"><input id="setup-autosave-enabled" type="checkbox">Autosave vormerken</label>
+        <label class="setup-check"><input id="setup-recovery-enabled" type="checkbox">Wiederherstellung vormerken</label>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="button button-subtle" value="cancel">Abbrechen</button>
+        <button type="submit" class="button button-primary" value="confirm">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+  <script type="module" src="js/app.js?v=31"></script>
 </body>
 </html>

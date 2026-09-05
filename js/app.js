@@ -1,4 +1,4 @@
-import { projectState, getSelectedElement, selectedElements, setSelection, toggleSelection, TEMPLATE_LABELS, TEMPLATE_TYPES, saveActiveTemplateView, switchTemplate, templateHasContent } from "./state.js";
+import { projectState, getSelectedElement, selectedElements, setSelection, toggleSelection, TEMPLATE_LABELS, saveActiveTemplateView, switchTemplate, templateHasContent, resetProject, setProjectDocumentType } from "./state.js";
 import { renderCanvas, setBackground } from "./canvas.js";
 import { addTextElement, removeSelectedElement, moveSelectedElement, beginPlacement, cancelPlacement } from "./elements.js?v=30";
 import { updatePropertiesPanel, bindProperties } from "./properties.js";
@@ -9,25 +9,138 @@ import { validateTable, resizeColumn, scaleColumns } from "./tables.js";
 import { layoutTableRows } from "./rowLayout.js";
 import { paginateInvoiceRows } from "./pagination.js";
 import { TEST_ROWS } from "./tables.js";
+import { FIELD_REGISTRY, getFieldsForDocumentType, getRecommendedFieldsForDocumentType, getFieldDisplayLabel } from "./fieldRegistry.js";
+import { getSettings, updateSettings } from "./settings.js";
+import { isFirstRun, completeFirstRun } from "./firstRun.js";
 
 const $ = (id) => document.getElementById(id);
+let fieldLibraryScope = "document";
+let documentTypeDialogMode = "new";
 const dom = {
   page: $("page"), stage: $("canvas-stage"), ghost: $("placement-ghost"), elementsLayer: $("elements-layer"), gridLayer: $("grid-layer"),
   backgroundImage: $("background-image"), form: $("properties-form"), tableForm: $("table-properties"), multi: $("multi-properties"),
   empty: $("empty-properties"), label: $("selection-label"), elementList: $("element-list"), count: $("element-count"),
-  zoomSelect: $("zoom-select"), zoomLabel: $("zoom-label"), viewport: $("canvas-viewport"), gridToggle: $("grid-toggle"), gridSize: $("grid-size"),
-  snapToggle: $("snap-toggle"), projectInput: $("project-input"), backgroundInput: $("background-input"), undo: $("undo-button"), redo: $("redo-button"), toast: $("toast-region"),
+  zoomSelect: $("zoom-select"), zoomLabel: $("zoom-label"), currentDocumentType: $("current-document-type"), viewport: $("canvas-viewport"), gridToggle: $("grid-toggle"), gridSize: $("grid-size"),
+  snapToggle: $("snap-toggle"), newProjectButton: $("new-project-button"), changeDocumentTypeButton: $("change-document-type-button"), newProjectDialog: $("new-project-dialog"), newProjectForm: $("new-project-form"), documentTypeDialogTitle: $("document-type-dialog-title"), documentTypeDialogSubtitle: $("document-type-dialog-subtitle"), documentTypeDialogConfirm: $("document-type-dialog-confirm"), projectInput: $("project-input"), backgroundInput: $("background-input"), undo: $("undo-button"), redo: $("redo-button"), toast: $("toast-region"),
+  fieldLibrary: $("field-library"), fieldLibraryCount: $("field-library-count"), fieldLibrarySearch: $("field-library-search"), fieldLibraryScope: [...document.querySelectorAll("input[name=field-library-scope]")],
+  newProjectDocumentTypes: [...document.querySelectorAll("input[name=new-project-document-type]")],
+  firstRunDialog: $("first-run-dialog"), firstRunForm: $("first-run-form"), setupGridMm: $("setup-grid-mm"), setupSnapToGrid: $("setup-snap-to-grid"), setupGridVisible: $("setup-grid-visible"), setupAutosaveEnabled: $("setup-autosave-enabled"), setupRecoveryEnabled: $("setup-recovery-enabled"),
   paginationRowCount: $("pagination-row-count"), paginationPreview: $("pagination-preview"), templateTabs: [...document.querySelectorAll("[data-template]")]
 };
 ["property-name", "property-id", "property-x", "property-y", "property-width", "property-height", "property-font-family", "property-font-size", "property-color", "property-multiline", "property-test-value"].forEach((id) => { dom[id] = $(id); });
 dom.fontWeight = [...document.querySelectorAll("input[name=font-weight]")]; dom.align = [...document.querySelectorAll("input[name=align]")];
 
 function inputFocused() { const element = document.activeElement; return element && (element.matches("input, textarea, select, [contenteditable=true]") || element.isContentEditable); }
+function modalOpen() { return dom.newProjectDialog.open || dom.firstRunDialog.open; }
 function toast(message, type = "info") { const item = document.createElement("div"); item.className = `toast ${type}`; item.textContent = message; dom.toast.append(item); setTimeout(() => item.remove(), 2800); }
 function restore(snapshot) { const view = { zoom: projectState.editor.zoom, camera: projectState.editor.camera }; const transientEditor = { backgroundDataUrls: projectState.editor.backgroundDataUrls }; const clipboard = projectState.clipboard; const selection = projectState.selection; Object.assign(projectState, snapshot); projectState.editor = { ...projectState.editor, ...transientEditor, ...view }; projectState.clipboard = clipboard; setSelection(selection.uids, selection.lastUid); render(); }
 function edit(action) { const before = capture(projectState); action(); record(before, projectState); render(); updateHistoryButtons(); }
 function select(uid, event, range = false) { const ids = projectState.elements.map((element) => element.uid); if (range) { const last = ids.indexOf(projectState.selection.lastUid); const next = ids.indexOf(uid); const start = Math.min(last < 0 ? next : last, next); const end = Math.max(last < 0 ? next : last, next); setSelection(ids.slice(start, end + 1), uid); } else if (event?.ctrlKey || event?.metaKey) toggleSelection(uid); else if (!projectState.selection.uids.includes(uid)) setSelection([uid]); render(); }
 function escapeHtml(value) { const span = document.createElement("span"); span.textContent = value; return span.innerHTML; }
+function isRecommendedForDocumentType(field, type) {
+  if (Array.isArray(field.recommended)) return field.recommended.includes(type);
+  return field.recommended === true;
+}
+function startCorePlacement(coreId, label = null) {
+  if (projectState.elements.some((element) => element.id === coreId)) {
+    toast(coreId === "invoice_lines" ? "Positionstabelle wurde nicht eingefügt: Core-Element bereits vorhanden." : "Core-Feld bereits vorhanden.", "warning");
+    return;
+  }
+  beginPlacement(coreId, label);
+  render();
+}
+function selectedNewProjectDocumentType() {
+  return dom.newProjectDocumentTypes.find((input) => input.checked)?.value || "invoice";
+}
+function openDocumentTypeDialog(mode) {
+  documentTypeDialogMode = mode;
+  const selectedType = mode === "change" ? projectState.documentType : "invoice";
+  const selectedOption = dom.newProjectDocumentTypes.find((input) => input.value === selectedType);
+  if (selectedOption) selectedOption.checked = true;
+  dom.documentTypeDialogTitle.textContent = mode === "change" ? "Dokumenttyp ändern" : "Neues Projekt";
+  dom.documentTypeDialogSubtitle.textContent = mode === "change" ? `Aktuell: ${projectState.documentType}` : "Dokumenttyp wählen";
+  dom.documentTypeDialogConfirm.textContent = mode === "change" ? "Ändern" : "Erstellen";
+  dom.newProjectDialog.showModal();
+}
+function createNewProject(documentType) {
+  resetProject(documentType);
+  clear();
+  render();
+  centerCamera();
+  toast("Neues Projekt erstellt.", "success");
+}
+function changeProjectDocumentType(documentType) {
+  setProjectDocumentType(documentType);
+  render();
+  toast("Dokumenttyp geändert.", "success");
+}
+function openFirstRunDialog() {
+  const settings = getSettings();
+  dom.setupGridMm.value = settings.gridMm;
+  dom.setupSnapToGrid.checked = settings.snapToGrid;
+  dom.setupGridVisible.checked = settings.gridVisible;
+  dom.setupAutosaveEnabled.checked = settings.autosaveEnabled;
+  dom.setupRecoveryEnabled.checked = settings.recoveryEnabled;
+  dom.firstRunDialog.showModal();
+}
+function setupSettingsFromForm() {
+  return {
+    gridMm: Number(dom.setupGridMm.value),
+    snapToGrid: dom.setupSnapToGrid.checked,
+    gridVisible: dom.setupGridVisible.checked,
+    autosaveEnabled: dom.setupAutosaveEnabled.checked,
+    recoveryEnabled: dom.setupRecoveryEnabled.checked
+  };
+}
+function fieldMatchesSearch(field, query) {
+  if (!query) return true;
+  const displayLabel = getFieldDisplayLabel(field, projectState.documentType).toLowerCase();
+  return displayLabel.includes(query) || field.id.toLowerCase().includes(query);
+}
+function renderFieldCategory(category, categoryFields) {
+  const section = document.createElement("section");
+  section.className = "field-category";
+  const heading = document.createElement("div");
+  heading.className = "field-category-title";
+  heading.textContent = category;
+  section.append(heading);
+  categoryFields.forEach((field) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `field-library-item${isRecommendedForDocumentType(field, projectState.documentType) ? " recommended" : ""}`;
+    item.dataset.fieldId = field.id;
+    const displayLabel = getFieldDisplayLabel(field, projectState.documentType);
+    item.innerHTML = `<span class="field-recommended" aria-hidden="true">${isRecommendedForDocumentType(field, projectState.documentType) ? "★" : ""}</span><span><strong>${escapeHtml(displayLabel)}</strong><small>${escapeHtml(field.id)}</small></span>`;
+    item.addEventListener("click", () => startCorePlacement(field.id, displayLabel));
+    section.append(item);
+  });
+  dom.fieldLibrary.append(section);
+}
+function renderFieldLibrary() {
+  const query = dom.fieldLibrarySearch.value.trim().toLowerCase();
+  const sourceFields = fieldLibraryScope === "all" ? FIELD_REGISTRY : getFieldsForDocumentType(projectState.documentType);
+  const recommendedFields = getRecommendedFieldsForDocumentType(projectState.documentType).filter((field) => sourceFields.includes(field) && fieldMatchesSearch(field, query));
+  const recommendedIds = new Set(recommendedFields.map((field) => field.id));
+  const fields = sourceFields.filter((field) => !recommendedIds.has(field.id) && fieldMatchesSearch(field, query));
+  const grouped = new Map();
+  fields.forEach((field) => {
+    if (!grouped.has(field.category)) grouped.set(field.category, []);
+    grouped.get(field.category).push(field);
+  });
+  dom.fieldLibraryCount.textContent = fields.length + recommendedFields.length;
+  dom.fieldLibrary.replaceChildren();
+  if (!fields.length && !recommendedFields.length) {
+    const empty = document.createElement("div");
+    empty.className = "field-library-empty";
+    empty.textContent = "Keine Felder gefunden.";
+    dom.fieldLibrary.append(empty);
+    return;
+  }
+  if (recommendedFields.length) renderFieldCategory("EMPFOHLEN", recommendedFields);
+  grouped.forEach((categoryFields, category) => {
+    renderFieldCategory(category, categoryFields);
+  });
+}
 function renderElementList() { dom.count.textContent = projectState.elements.length; dom.elementList.replaceChildren(); projectState.elements.forEach((element) => { const item = document.createElement("div"); item.className = `element-item${projectState.selection.uids.includes(element.uid) ? " selected" : ""}${projectState.selection.anchorUid === element.uid ? " anchor" : ""}`; item.innerHTML = `<strong>${escapeHtml(element.name)}</strong><small>${escapeHtml(element.id)}${element.type === "table" ? " · table" : ""}</small>`; item.addEventListener("click", (event) => select(element.uid, event, event.shiftKey)); dom.elementList.append(item); }); }
 function paginationRows() { const count = Math.max(1, Math.min(500, Number(projectState.editor.paginationRowCount) || 25)); return Array.from({ length: count }, (_, index) => ({ ...TEST_ROWS[index % TEST_ROWS.length], line_position: String(index + 1) })); }
 function renderTemplateTabs() { dom.templateTabs.forEach((button) => { const type = button.dataset.template; button.classList.toggle("active", type === projectState.activeTemplate); button.querySelector(".template-status").textContent = templateHasContent(type) ? "●" : "○"; }); }
@@ -41,7 +154,7 @@ function renderPaginationPreview() {
   dom.paginationPreview.innerHTML = [`<div><strong>Testpositionen:</strong> ${projectState.editor.paginationRowCount}</div>`, `<div><strong>Seiten:</strong> ${result.totalPages}</div>`, ...result.pages.map((page) => `<div>${page.pageNumber} · ${escapeHtml(page.label || TEMPLATE_LABELS[page.template])} · ${page.rows.length} Positionen</div>`)].join("");
 }
 function updateMultiPanel() { const multiple = projectState.selection.uids.length > 1; dom.multi.hidden = !multiple; if (multiple) { $("multi-count").textContent = `${projectState.selection.uids.length} Elemente ausgewählt`; $("multi-anchor").textContent = getSelectedElement()?.name || ""; } }
-function render() { renderCanvas(dom, render, select, () => { dom.dragBefore = capture(projectState); }, () => { if (dom.dragBefore) record(dom.dragBefore, projectState); updateHistoryButtons(); }); const selected = getSelectedElement(); if (projectState.selection.uids.length === 1 && selected?.type === "table") { dom.form.hidden = true; dom.tableForm.hidden = false; dom.empty.hidden = true; dom.label.textContent = "AUSGEWÄHLT"; updateTablePanel(selected); } else if (projectState.selection.uids.length === 1) { dom.tableForm.hidden = true; updatePropertiesPanel(dom, render); } else { dom.form.hidden = true; dom.tableForm.hidden = true; dom.empty.hidden = Boolean(projectState.selection.uids.length); dom.label.textContent = projectState.selection.uids.length ? "MEHRFACH AUSGEWÄHLT" : "NICHTS AUSGEWÄHLT"; } updateMultiPanel(); renderElementList(); renderTemplateTabs(); renderPaginationPreview(); dom.zoomLabel.textContent = `${TEMPLATE_LABELS[projectState.activeTemplate]} · ${Math.round(projectState.editor.zoom * 100)} %`; dom.zoomSelect.value = String(Math.round(projectState.editor.zoom * 100)); dom.gridToggle.checked = projectState.editor.gridVisible; dom.gridSize.value = String(projectState.editor.gridMm); dom.snapToggle.checked = projectState.editor.snapToGrid; updateHistoryButtons(); }
+function render() { renderCanvas(dom, render, select, () => { dom.dragBefore = capture(projectState); }, () => { if (dom.dragBefore) record(dom.dragBefore, projectState); updateHistoryButtons(); }); const selected = getSelectedElement(); if (projectState.selection.uids.length === 1 && selected?.type === "table") { dom.form.hidden = true; dom.tableForm.hidden = false; dom.empty.hidden = true; dom.label.textContent = "AUSGEWÄHLT"; updateTablePanel(selected); } else if (projectState.selection.uids.length === 1) { dom.tableForm.hidden = true; updatePropertiesPanel(dom, render); } else { dom.form.hidden = true; dom.tableForm.hidden = true; dom.empty.hidden = Boolean(projectState.selection.uids.length); dom.label.textContent = projectState.selection.uids.length ? "MEHRFACH AUSGEWÄHLT" : "NICHTS AUSGEWÄHLT"; } updateMultiPanel(); renderFieldLibrary(); renderElementList(); renderTemplateTabs(); renderPaginationPreview(); dom.currentDocumentType.textContent = projectState.documentType; dom.zoomLabel.textContent = `${TEMPLATE_LABELS[projectState.activeTemplate]} · ${Math.round(projectState.editor.zoom * 100)} %`; dom.zoomSelect.value = String(Math.round(projectState.editor.zoom * 100)); dom.gridToggle.checked = projectState.editor.gridVisible; dom.gridSize.value = String(projectState.editor.gridMm); dom.snapToggle.checked = projectState.editor.snapToGrid; updateHistoryButtons(); }
 function updateHistoryButtons() { dom.undo.disabled = !canUndo(); dom.redo.disabled = !canRedo(); }
 function setZoom(zoom) { projectState.editor.zoom = Math.max(.1, Math.min(6, zoom)); saveActiveTemplateView(); render(); }
 function centerCamera() { projectState.editor.camera = { panX: 0, panY: 0 }; saveActiveTemplateView(); render(); const v = dom.viewport.getBoundingClientRect(); const p = dom.page.getBoundingClientRect(); dom.viewport.scrollLeft += p.left + p.width / 2 - (v.left + v.width / 2); dom.viewport.scrollTop += p.top + p.height / 2 - (v.top + v.height / 2); }
@@ -106,8 +219,14 @@ function updateTablePanel(table) {
   });
 }
 
-$("add-text-button").addEventListener("click", () => { beginPlacement(); render(); }); document.querySelectorAll("[data-core-id]").forEach((button) => button.addEventListener("click", () => { if (projectState.elements.some((element) => element.id === button.dataset.coreId)) { toast(button.dataset.coreId === "invoice_lines" ? "Positionstabelle wurde nicht eingefügt: Core-Element bereits vorhanden." : "Core-Feld bereits vorhanden.", "warning"); return; } beginPlacement(button.dataset.coreId); render(); })); $("delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("table-delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("export-button").addEventListener("click", () => { exportProject(); toast("Projekt exportiert.", "success"); }); $("import-button").addEventListener("click", () => dom.projectInput.click()); $("fit-button").addEventListener("click", fitToWindow); dom.undo.addEventListener("click", () => { if (undo(projectState, restore)) updateHistoryButtons(); }); dom.redo.addEventListener("click", () => { if (redo(projectState, restore)) updateHistoryButtons(); });
+$("add-text-button").addEventListener("click", () => { beginPlacement(); render(); }); document.querySelectorAll("[data-core-id]").forEach((button) => button.addEventListener("click", () => startCorePlacement(button.dataset.coreId))); $("delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("table-delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("export-button").addEventListener("click", () => { exportProject(); toast("Projekt exportiert.", "success"); }); dom.newProjectButton.addEventListener("click", () => openDocumentTypeDialog("new")); dom.changeDocumentTypeButton.addEventListener("click", () => openDocumentTypeDialog("change")); dom.newProjectForm.addEventListener("submit", (event) => { if (event.submitter?.value !== "confirm") return; event.preventDefault(); dom.newProjectDialog.close(); if (documentTypeDialogMode === "change") changeProjectDocumentType(selectedNewProjectDocumentType()); else createNewProject(selectedNewProjectDocumentType()); }); $("import-button").addEventListener("click", () => dom.projectInput.click()); $("fit-button").addEventListener("click", fitToWindow); dom.undo.addEventListener("click", () => { if (undo(projectState, restore)) updateHistoryButtons(); }); dom.redo.addEventListener("click", () => { if (redo(projectState, restore)) updateHistoryButtons(); });
+dom.firstRunForm.addEventListener("submit", (event) => { if (event.submitter?.value !== "confirm") return; event.preventDefault(); updateSettings(setupSettingsFromForm()); completeFirstRun(); dom.firstRunDialog.close(); });
 dom.projectInput.addEventListener("change", async () => { if (!dom.projectInput.files[0]) return; try { await importProject(dom.projectInput.files[0]); clear(); render(); centerCamera(); } catch (error) { toast(`Projekt konnte nicht geladen werden: ${error.message}`, "error"); } dom.projectInput.value = ""; }); $("background-button").addEventListener("click", () => dom.backgroundInput.click()); dom.backgroundInput.addEventListener("change", async () => { const file = dom.backgroundInput.files[0]; if (file) { const before = capture(projectState); setBackground(dom, await readFileAsDataUrl(file), file.name); record(before, projectState); updateHistoryButtons(); render(); } dom.backgroundInput.value = ""; }); dom.zoomSelect.addEventListener("change", () => setZoom(Number(dom.zoomSelect.value) / 100)); dom.gridToggle.addEventListener("change", () => { projectState.editor.gridVisible = dom.gridToggle.checked; render(); }); dom.gridSize.addEventListener("change", () => { projectState.editor.gridMm = Number(dom.gridSize.value); render(); }); dom.snapToggle.addEventListener("change", () => { projectState.editor.snapToGrid = dom.snapToggle.checked; render(); });
+dom.fieldLibrarySearch.addEventListener("input", renderFieldLibrary);
+dom.fieldLibraryScope.forEach((input) => input.addEventListener("change", (event) => {
+  fieldLibraryScope = event.target.value === "all" ? "all" : "document";
+  renderFieldLibrary();
+}));
 dom.templateTabs.forEach((button) => button.addEventListener("click", () => { if (switchTemplate(button.dataset.template)) centerCamera(); else render(); }));
 dom.paginationRowCount.addEventListener("change", () => { projectState.editor.paginationRowCount = Math.max(1, Math.min(500, Number(dom.paginationRowCount.value) || 25)); render(); });
 dom.page.addEventListener("pointermove", (event) => { if (!projectState.placement.active) return; const rect = dom.page.getBoundingClientRect(); dom.ghost.style.left = `${Math.max(0, Math.min(rect.width, event.clientX - rect.left))}px`; dom.ghost.style.top = `${Math.max(0, Math.min(rect.height, event.clientY - rect.top))}px`; }); dom.page.addEventListener("pointerdown", (event) => { if (event.button === 1) return; if (projectState.placement.active) { const rect = dom.page.getBoundingClientRect(); edit(() => { addTextElement({ x: (event.clientX - rect.left) / rect.width * 210, y: (event.clientY - rect.top) / rect.height * 297 }, projectState.placement.coreId); cancelPlacement(); }); return; } if (event.target === dom.page || event.target === dom.gridLayer || event.target === dom.backgroundImage) { setSelection([]); render(); } });
@@ -126,4 +245,4 @@ $("table-test-data").addEventListener("change", (event) => { const table = getSe
 }));
 ["table-row-height", "table-min-row-height", "table-padding-horizontal", "table-padding-vertical", "table-line-height", "table-offset"].forEach((id) => $(id).addEventListener("change", (event) => { const table = getSelectedElement(); if (!table || table.type !== "table") return; edit(() => { const keys = { "table-row-height": "rowHeightMm", "table-min-row-height": "minRowHeightMm", "table-padding-horizontal": "cellPaddingHorizontalMm", "table-padding-vertical": "cellPaddingVerticalMm", "table-line-height": "lineHeight", "table-offset": "textOffsetYmm" }; table[keys[id]] = Number(event.target.value); }); })); document.querySelectorAll("input[name=table-row-mode]").forEach((input) => input.addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type === "table") edit(() => { table.rowMode = event.target.value; }); })); $("table-vertical-align").addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type === "table") edit(() => { table.verticalAlign = event.target.value; }); });
 dom.viewport.addEventListener("pointerdown", (event) => { if (event.button !== 1) return; event.preventDefault(); event.stopPropagation(); dom.viewport.classList.add("panning"); const start = { x: event.clientX, y: event.clientY, ...projectState.editor.camera }; try { dom.viewport.setPointerCapture(event.pointerId); } catch { } const move = (moveEvent) => { projectState.editor.camera.panX = start.panX + moveEvent.clientX - start.x; projectState.editor.camera.panY = start.panY + moveEvent.clientY - start.y; saveActiveTemplateView(); render(); }; const stop = () => { dom.viewport.classList.remove("panning"); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", stop); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", stop); }, true); dom.viewport.addEventListener("wheel", (event) => { event.preventDefault(); if (event.ctrlKey) setZoom(projectState.editor.zoom + (event.deltaY > 0 ? -.05 : .05)); else { projectState.editor.camera.panX += event.shiftKey ? event.deltaY : 0; projectState.editor.camera.panY += event.shiftKey ? 0 : event.deltaY; saveActiveTemplateView(); render(); } }, { passive: false });
-document.addEventListener("keydown", (event) => { if (inputFocused()) return; const modifier = event.ctrlKey || event.metaKey; if (modifier && event.key.toLowerCase() === "a") { event.preventDefault(); setSelection(projectState.elements.map((element) => element.uid)); render(); } else if (modifier && event.key.toLowerCase() === "c") { event.preventDefault(); copySelected(); } else if (modifier && event.key.toLowerCase() === "v") { event.preventDefault(); paste(); } else if (modifier && event.key.toLowerCase() === "x") { event.preventDefault(); if (copySelected()) edit(removeSelectedElement); } else if (modifier && event.key.toLowerCase() === "d") { event.preventDefault(); if (copySelected()) paste(); } else if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey ? redo(projectState, restore) : undo(projectState, restore)) updateHistoryButtons(); } else if (modifier && event.key.toLowerCase() === "y") { event.preventDefault(); if (redo(projectState, restore)) updateHistoryButtons(); } else if (event.key === "Escape") { event.preventDefault(); cancelPlacement(); setSelection([]); render(); } else if (event.key === "Delete") { event.preventDefault(); edit(removeSelectedElement); } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); edit(() => { const step = event.shiftKey ? 1 : .1; moveSelectedElement(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0); }); } }); document.querySelectorAll("[data-align]").forEach((button) => button.addEventListener("click", () => align(button.dataset.align))); document.querySelectorAll("[data-distribute]").forEach((button) => button.addEventListener("click", () => distribute(button.dataset.distribute === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-apply]").forEach((button) => button.addEventListener("click", () => applySpacing(button.dataset.spacingApply === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-step]").forEach((button) => button.addEventListener("click", () => { const input = $("spacing-value"); input.value = Math.max(0, (Number(input.value) || 0) + Number(button.dataset.spacingStep)).toFixed(1); })); let propertyBefore = null; bindProperties(dom, () => render(), () => { if (!propertyBefore) propertyBefore = capture(projectState); }, () => { if (propertyBefore) { record(propertyBefore, projectState); propertyBefore = null; updateHistoryButtons(); } }); window.addEventListener("resize", centerCamera); render(); updateHistoryButtons(); centerCamera();
+document.addEventListener("keydown", (event) => { if (inputFocused() || modalOpen()) return; const modifier = event.ctrlKey || event.metaKey; if (modifier && event.key.toLowerCase() === "a") { event.preventDefault(); setSelection(projectState.elements.map((element) => element.uid)); render(); } else if (modifier && event.key.toLowerCase() === "c") { event.preventDefault(); copySelected(); } else if (modifier && event.key.toLowerCase() === "v") { event.preventDefault(); paste(); } else if (modifier && event.key.toLowerCase() === "x") { event.preventDefault(); if (copySelected()) edit(removeSelectedElement); } else if (modifier && event.key.toLowerCase() === "d") { event.preventDefault(); if (copySelected()) paste(); } else if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey ? redo(projectState, restore) : undo(projectState, restore)) updateHistoryButtons(); } else if (modifier && event.key.toLowerCase() === "y") { event.preventDefault(); if (redo(projectState, restore)) updateHistoryButtons(); } else if (event.key === "Escape") { event.preventDefault(); cancelPlacement(); setSelection([]); render(); } else if (event.key === "Delete") { event.preventDefault(); edit(removeSelectedElement); } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); edit(() => { const step = event.shiftKey ? 1 : .1; moveSelectedElement(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0); }); } }); document.querySelectorAll("[data-align]").forEach((button) => button.addEventListener("click", () => align(button.dataset.align))); document.querySelectorAll("[data-distribute]").forEach((button) => button.addEventListener("click", () => distribute(button.dataset.distribute === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-apply]").forEach((button) => button.addEventListener("click", () => applySpacing(button.dataset.spacingApply === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-step]").forEach((button) => button.addEventListener("click", () => { const input = $("spacing-value"); input.value = Math.max(0, (Number(input.value) || 0) + Number(button.dataset.spacingStep)).toFixed(1); })); let propertyBefore = null; bindProperties(dom, () => render(), () => { if (!propertyBefore) propertyBefore = capture(projectState); }, () => { if (propertyBefore) { record(propertyBefore, projectState); propertyBefore = null; updateHistoryButtons(); } }); window.addEventListener("resize", centerCamera); render(); updateHistoryButtons(); centerCamera(); if (isFirstRun()) openFirstRunDialog();

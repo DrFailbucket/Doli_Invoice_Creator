@@ -26,7 +26,7 @@ export function renderCanvas(dom, onChange, onSelect, onHistoryStart, onHistoryE
     elementsLayer.append(node); bindElementPointer(node, page, onChange, onSelect, onHistoryStart, onHistoryEnd);
   });
   dom.ghost.hidden = !projectState.placement.active;
-  if (!dom.ghost.hidden) { dom.ghost.classList.toggle("table-ghost", projectState.placement.coreId === "invoice_lines"); dom.ghost.textContent = projectState.placement.coreId === "invoice_ref" ? "Rechnungsnummer" : projectState.placement.coreId === "invoice_date" ? "Rechnungsdatum" : projectState.placement.coreId === "invoice_lines" ? "Positionstabelle" : "Beispieltext"; }
+  if (!dom.ghost.hidden) { dom.ghost.classList.toggle("table-ghost", projectState.placement.coreId === "invoice_lines"); dom.ghost.textContent = projectState.placement.label || (projectState.placement.coreId === "object_ref" ? "Dokumentnummer" : projectState.placement.coreId === "object_date" ? "Dokumentdatum" : projectState.placement.coreId === "invoice_lines" ? "Positionstabelle" : "Beispieltext"); }
 }
 
 function renderTable(node, table, pageWidthPx, pageHeightPx, selected) {

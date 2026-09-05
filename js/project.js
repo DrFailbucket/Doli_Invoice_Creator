@@ -6,6 +6,17 @@ function cleanElement(element) {
   return documentElement;
 }
 
+function validateProjectData(projectData) {
+  if (!projectData || typeof projectData !== "object" || Array.isArray(projectData)) throw new Error("Ungültiges Projektformat: Projektdaten fehlen.");
+  if (!Array.isArray(projectData.elements) && !projectData.templates) throw new Error("Ungültiges Projektformat: elements oder templates fehlt.");
+  if (projectData.elements && (!Array.isArray(projectData.elements) || projectData.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error("Ungültiges Projektformat: elements ist ungültig.");
+  if (projectData.templates && (typeof projectData.templates !== "object" || Array.isArray(projectData.templates))) throw new Error("Ungültiges Projektformat: templates ist ungültig.");
+  if (projectData.templates) Object.values(projectData.templates).forEach((template) => {
+    if (template && (typeof template !== "object" || Array.isArray(template))) throw new Error("Ungültiges Projektformat: template ist ungültig.");
+    if (template?.elements && (!Array.isArray(template.elements) || template.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error("Ungültiges Projektformat: template elements ist ungültig.");
+  });
+}
+
 export function projectForExport() {
   return {
     version: 4,
@@ -25,4 +36,5 @@ export function projectForExport() {
   };
 }
 export function exportProject() { downloadJson("doli-invoice-project.json", projectForExport()); }
-export async function importProject(file) { const parsed = JSON.parse(await readFileAsText(file)); if (!Array.isArray(parsed.elements) && !parsed.templates) throw new Error("Ungültiges Projektformat: elements oder templates fehlt."); replaceProject(parsed); }
+export function restoreProjectData(projectData) { validateProjectData(projectData); replaceProject(projectData); }
+export async function importProject(file) { const parsed = JSON.parse(await readFileAsText(file)); restoreProjectData(parsed); }

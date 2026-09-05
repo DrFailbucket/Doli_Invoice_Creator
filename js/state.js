@@ -3,6 +3,7 @@ import { createDefaultColumns, normalizeTableColumns } from "./tables.js";
 export const PAGE_WIDTH_MM = 210;
 export const PAGE_HEIGHT_MM = 297;
 export const TEMPLATE_TYPES = ["single", "first", "middle", "last"];
+export const DOCUMENT_TYPES = Object.freeze(["invoice", "proposal", "order", "shipment"]);
 export const TEMPLATE_LABELS = {
   single: "Einseitig",
   first: "Erste Seite",
@@ -26,6 +27,10 @@ function createTemplateViews() {
   return Object.fromEntries(TEMPLATE_TYPES.map((type) => [type, { zoom: 1, camera: { panX: 0, panY: 0 } }]));
 }
 
+function normalizeDocumentType(documentType) {
+  return DOCUMENT_TYPES.includes(documentType) ? documentType : "invoice";
+}
+
 export const projectState = {
   version: 4,
   documentType: "invoice",
@@ -42,7 +47,7 @@ export const projectState = {
     paginationRowCount: 25
   },
   selection: { uids: [], anchorUid: null, lastUid: null },
-  placement: { active: false, coreId: null },
+  placement: { active: false, coreId: null, label: null },
   clipboard: []
 };
 
@@ -102,7 +107,7 @@ export function switchTemplate(type) {
   projectState.editor.zoom = Number.isFinite(Number(view.zoom)) ? Math.max(.1, Math.min(6, Number(view.zoom))) : 1;
   projectState.editor.camera = { panX: Number(view.camera?.panX) || 0, panY: Number(view.camera?.panY) || 0 };
   projectState.selection = { uids: [], anchorUid: null, lastUid: null };
-  projectState.placement = { active: false, coreId: null };
+  projectState.placement = { active: false, coreId: null, label: null };
   return true;
 }
 
@@ -135,9 +140,16 @@ export function createTextElement(index) {
   };
 }
 
-export function createCoreElement(coreId, index) {
-  const definitions = { invoice_ref: "Rechnungsnummer", invoice_date: "Rechnungsdatum" };
-  return { ...createTextElement(index), uid: `el_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`, elementClass: "core", id: coreId, name: definitions[coreId] || coreId, width: 30, height: 5, testValue: definitions[coreId] || coreId };
+export function createCoreElement(coreId, index, label = null) {
+  const definitions = { object_ref: "Dokumentnummer", object_date: "Dokumentdatum" };
+  const name = label || definitions[coreId] || coreId;
+  return { ...createTextElement(index), uid: `el_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`, elementClass: "core", id: coreId, name, width: 30, height: 5, testValue: name };
+}
+
+function normalizeLegacyCoreId(id) {
+  if (id === "invoice_ref") return "object_ref";
+  if (id === "invoice_date") return "object_date";
+  return id;
 }
 
 function normalizePage(page = {}) {
@@ -149,13 +161,14 @@ function normalizePage(page = {}) {
 }
 
 function normalizeTextElement(element, index, usedIds) {
-  let elementClass = element.elementClass === "core" && ["invoice_ref", "invoice_date", "invoice_lines"].includes(element.id) ? "core" : "custom";
-  const baseId = element.id || `text_${index + 1}`;
+  const normalizedId = normalizeLegacyCoreId(element.id);
+  let elementClass = element.elementClass === "core" && ["object_ref", "object_date", "invoice_lines"].includes(normalizedId) ? "core" : "custom";
+  const baseId = normalizedId || `text_${index + 1}`;
   let id = baseId; let suffix = 2;
   while (usedIds.has(id)) id = `${baseId}_${suffix++}`;
   usedIds.add(id);
   if (elementClass === "core" && id !== baseId) elementClass = "custom";
-  const coreId = elementClass === "core" && ["invoice_ref", "invoice_date", "invoice_lines"].includes(baseId) ? baseId : null;
+  const coreId = elementClass === "core" && ["object_ref", "object_date", "invoice_lines"].includes(baseId) ? baseId : null;
 
   if (element.type === "table") {
     const oldPadding = Number(element.cellPaddingMm) || 0;
@@ -202,7 +215,7 @@ function templatesFromProject(nextProject) {
 
 export function replaceProject(nextProject) {
   projectState.version = 4;
-  projectState.documentType = nextProject.documentType || "invoice";
+  projectState.documentType = normalizeDocumentType(nextProject.documentType);
   projectState.templates = templatesFromProject(nextProject);
   projectState.editor.gridMm = Number(nextProject.editor?.gridMm) || 1;
   projectState.editor.snapToGrid = nextProject.editor?.snapToGrid !== false;
@@ -214,6 +227,27 @@ export function replaceProject(nextProject) {
   const view = projectState.editor.templateViews[projectState.activeTemplate] || { zoom: nextProject.editor?.zoom || 1, camera: nextProject.editor?.camera || { panX: 0, panY: 0 } };
   projectState.editor.zoom = Number.isFinite(Number(view.zoom)) ? Math.max(.1, Math.min(6, Number(view.zoom))) : 1;
   projectState.editor.camera = { panX: Number(view.camera?.panX) || 0, panY: Number(view.camera?.panY) || 0 };
-  projectState.placement = { active: false, coreId: null };
+  projectState.placement = { active: false, coreId: null, label: null };
   projectState.selection = { uids: [], anchorUid: null, lastUid: null };
+}
+
+export function resetProject(documentType = "invoice") {
+  replaceProject({
+    version: 4,
+    documentType: normalizeDocumentType(documentType),
+    templates: createTemplates(),
+    editor: {
+      gridMm: 1,
+      snapToGrid: true,
+      gridVisible: true,
+      templateViews: createTemplateViews(),
+      activeTemplate: "single",
+      paginationRowCount: 25
+    }
+  });
+  projectState.clipboard = [];
+}
+
+export function setProjectDocumentType(documentType) {
+  projectState.documentType = normalizeDocumentType(documentType);
 }

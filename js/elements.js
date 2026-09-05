@@ -6,7 +6,7 @@ import { clamp, snap } from "./utils.js";
 const MIN_SIZE = 2;
 
 export function addTextElement(position, coreId) {
-  const element = coreId === "invoice_lines" ? createTableElement(projectState.elements.length + 1) : coreId ? createCoreElement(coreId, projectState.elements.length + 1) : createTextElement(projectState.elements.length + 1);
+  const element = coreId === "invoice_lines" ? createTableElement(projectState.elements.length + 1) : coreId ? createCoreElement(coreId, projectState.elements.length + 1, projectState.placement.label) : createTextElement(projectState.elements.length + 1);
   if (!coreId) { const used = new Set(projectState.elements.map((item) => item.id)); const base = element.id; let suffix = 2; while (used.has(element.id)) element.id = `${base}_${suffix++}`; }
   if (position) { element.x = clamp(position.x - element.width / 2, 0, 210 - element.width); element.y = clamp(position.y - element.height / 2, 0, 297 - element.height); }
   projectState.elements.push(element); setSelection([element.uid]); return element;
@@ -17,8 +17,8 @@ export function removeSelectedElement() {
   projectState.elements = projectState.elements.filter((element) => !selected.has(element.uid)); setSelection([]);
 }
 
-export function beginPlacement(coreId = null) { projectState.placement = { active: true, coreId }; }
-export function cancelPlacement() { projectState.placement = { active: false, coreId: null }; }
+export function beginPlacement(coreId = null, label = null) { projectState.placement = { active: true, coreId, label }; }
+export function cancelPlacement() { projectState.placement = { active: false, coreId: null, label: null }; }
 
 export function moveSelectedElement(dx, dy) {
   const selected = selectedElements(); if (!selected.length) return; const anchor = getSelectedElement(); const actualDx = clamp(round(anchor.x + dx), 0, 210 - anchor.width) - anchor.x; const actualDy = clamp(round(anchor.y + dy), 0, 297 - anchor.height) - anchor.y;
