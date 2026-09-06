@@ -1,6 +1,4 @@
-import { DOCUMENT_TYPES } from "./state.js";
-
-const ALL_DOCUMENT_TYPES = DOCUMENT_TYPES;
+const ALL_DOCUMENT_TYPES = Object.freeze(["invoice", "proposal", "order", "shipment"]);
 const CONTACT_DOCUMENT_TYPES = Object.freeze(["invoice", "proposal", "order"]);
 const INVOICE_DOCUMENT_TYPES = Object.freeze(["invoice"]);
 const PROPOSAL_DOCUMENT_TYPES = Object.freeze(["proposal"]);
@@ -94,6 +92,14 @@ const FIELD_DISPLAY_LABEL_OVERRIDES = Object.freeze({
     company_name: "Empfänger / Firma",
     company_customercode: "Kundennummer"
   })
+});
+
+const FIELD_SEARCH_ALIASES = Object.freeze({
+  object_date_limit: Object.freeze(["F\u00e4llig", "F\u00e4lligkeitsdatum", "zahlbar bis", "due date"]),
+  object_payment_term: Object.freeze(["Zahlungsziel", "Zahlungsbedingung", "Zahlungsbedingungen", "payment term", "payment condition"]),
+  object_total_vat: Object.freeze(["MwSt", "Mehrwertsteuer", "USt", "Umsatzsteuer", "VAT", "tax"]),
+  mycompany_vatnumber: Object.freeze(["USt-ID", "USt-IdNr", "VAT ID"]),
+  invoice_lines: Object.freeze(["Positionen", "Rechnungspositionen", "Tabelle", "lines"])
 });
 
 function dolibarrField(id, label, category, documentTypes = ALL_DOCUMENT_TYPES, recommended = false) {
@@ -374,8 +380,17 @@ const PATTERN_DEFINITIONS = [
   dolibarrPattern("line_product_options_xxx", "Produkt-Zusatzfeld der Position", "line")
 ];
 
+const FIELD_PATTERN_PREFIXES = Object.freeze([
+  "company_options_",
+  "contact_options_",
+  "myuser_options_",
+  "object_options_",
+  "line_options_",
+  "line_product_options_"
+]);
+
 function freezeField(field) {
-  const recommendedTypes = DOCUMENT_TYPES.filter((type) => RECOMMENDED_FIELDS_BY_DOCUMENT_TYPE[type]?.includes(field.id));
+  const recommendedTypes = ALL_DOCUMENT_TYPES.filter((type) => RECOMMENDED_FIELDS_BY_DOCUMENT_TYPE[type]?.includes(field.id));
   const recommended = recommendedTypes.length ? Object.freeze(recommendedTypes) : false;
   return Object.freeze({ ...field, documentTypes: Object.freeze([...field.documentTypes]), recommended });
 }
@@ -410,6 +425,19 @@ export function getRecommendedFieldsForDocumentType(type) {
 
 export function getFieldDisplayLabel(field, documentType) {
   return FIELD_DISPLAY_LABEL_OVERRIDES[documentType]?.[field.id] || field.label;
+}
+
+export function getFieldSearchTerms(field, documentType) {
+  return Object.freeze([
+    field.label,
+    field.id,
+    getFieldDisplayLabel(field, documentType),
+    ...(FIELD_SEARCH_ALIASES[field.id] || [])
+  ]);
+}
+
+export function isRegistryFieldId(id) {
+  return Boolean(getFieldById(id) || FIELD_PATTERN_PREFIXES.some((prefix) => typeof id === "string" && id.startsWith(prefix) && id.length > prefix.length));
 }
 
 export function getPatternsForDocumentType(type) {

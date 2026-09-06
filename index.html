@@ -39,22 +39,29 @@
 
   <main class="workspace">
     <aside class="sidebar library-panel">
-      <div class="panel-heading"><span>Elementbibliothek</span><span class="eyebrow">PHASE 1</span></div>
-      <button id="add-text-button" class="library-button"><span class="plus">+</span><span><strong>Textfeld</strong><small>Freies Text-Element</small></span></button>
-      <div class="panel-divider"></div><div class="panel-heading subheading"><span>Rechnungsfelder</span></div>
-      <button class="library-button core-button" data-core-id="object_ref"><span class="core-badge">Core</span><span><strong>Dokumentnummer</strong><small>object_ref · feste ID</small></span></button>
-      <button class="library-button core-button" data-core-id="object_date"><span class="core-badge">Core</span><span><strong>Dokumentdatum</strong><small>object_date · feste ID</small></span></button>
-      <button class="library-button core-button table-button" data-core-id="invoice_lines"><span class="core-badge">Core</span><span><strong>Positionstabelle</strong><small>invoice_lines · feste ID</small></span></button>
-      <section class="field-library-section">
-        <div class="panel-heading subheading"><span>Feldbibliothek</span><span id="field-library-count" class="count-badge">0</span></div>
-        <div class="field-library-scope" role="group" aria-label="Feldbibliothek Umfang">
-          <label><input type="radio" name="field-library-scope" value="document" checked>Für Dokumenttyp</label>
-          <label><input type="radio" name="field-library-scope" value="all">Alle Felder</label>
+      <section class="sidebar-pane element-library-pane" data-sidebar-pane="element-library">
+        <div class="panel-heading"><span>Elementbibliothek</span><span class="eyebrow">PHASE 1</span></div>
+        <div class="sidebar-pane-content">
+          <button id="add-text-button" class="library-button"><span class="plus">+</span><span><strong>Textfeld</strong><small>Freies Text-Element</small></span></button>
         </div>
-        <label class="field-library-search"><span>Suche</span><input id="field-library-search" type="search" autocomplete="off" placeholder="Label oder ID"></label>
-        <div id="field-library" class="field-library"></div>
       </section>
-      <div class="element-section"><div class="panel-heading subheading"><span>Elemente</span><span id="element-count" class="count-badge">0</span></div><div id="element-list" class="element-list"></div></div>
+      <div class="sidebar-splitter" data-sidebar-splitter="element-library|field-library" role="separator" aria-orientation="horizontal" aria-label="Element- und Feldbibliothek anpassen" tabindex="0"></div>
+      <section class="sidebar-pane field-library-section" data-sidebar-pane="field-library">
+        <div class="panel-heading subheading"><span>Feldbibliothek</span><span id="field-library-count" class="count-badge">0</span></div>
+        <div class="sidebar-pane-content field-library-controls">
+          <div class="field-library-scope" role="group" aria-label="Feldbibliothek Umfang">
+            <label><input type="radio" name="field-library-scope" value="document" checked>Für Dokumenttyp</label>
+            <label><input type="radio" name="field-library-scope" value="all">Alle Felder</label>
+          </div>
+          <label class="field-library-search"><span>Suche</span><input id="field-library-search" type="search" autocomplete="off" placeholder="Label oder ID"></label>
+          <div id="field-library" class="field-library"></div>
+        </div>
+      </section>
+      <div class="sidebar-splitter" data-sidebar-splitter="field-library|elements" role="separator" aria-orientation="horizontal" aria-label="Feldbibliothek und Elemente anpassen" tabindex="0"></div>
+      <section class="sidebar-pane element-section" data-sidebar-pane="elements">
+        <div class="panel-heading subheading"><span>Elemente</span><span id="element-count" class="count-badge">0</span></div>
+        <div id="element-list" class="element-list sidebar-pane-content"></div>
+      </section>
     </aside>
 
     <section class="canvas-area">

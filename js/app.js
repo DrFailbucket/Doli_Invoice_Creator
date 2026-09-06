@@ -9,13 +9,101 @@ import { validateTable, resizeColumn, scaleColumns } from "./tables.js";
 import { layoutTableRows } from "./rowLayout.js";
 import { paginateInvoiceRows } from "./pagination.js";
 import { TEST_ROWS } from "./tables.js";
-import { FIELD_REGISTRY, getFieldsForDocumentType, getRecommendedFieldsForDocumentType, getFieldDisplayLabel } from "./fieldRegistry.js";
+import { FIELD_REGISTRY, getFieldsForDocumentType, getRecommendedFieldsForDocumentType, getFieldDisplayLabel, getFieldSearchTerms } from "./fieldRegistry.js";
 import { getSettings, updateSettings } from "./settings.js";
 import { isFirstRun, completeFirstRun } from "./firstRun.js";
 
 const $ = (id) => document.getElementById(id);
 let fieldLibraryScope = "document";
 let documentTypeDialogMode = "new";
+const SIDEBAR_LAYOUT_KEY = "doliInvoiceCreator.sidebarLayout";
+const SIDEBAR_MIN_HEIGHTS = [110, 180, 100];
+const SIDEBAR_DEFAULT_RATIOS = [0.28, 0.47, 0.25];
+let sidebarRatios = [...SIDEBAR_DEFAULT_RATIOS];
+
+function normalizeSidebarRatios(value) {
+  if (!Array.isArray(value) || value.length !== 3 || value.some((item) => !Number.isFinite(Number(item)) || Number(item) <= 0)) return [...SIDEBAR_DEFAULT_RATIOS];
+  const total = value.reduce((sum, item) => sum + Number(item), 0);
+  return total > 0 ? value.map((item) => Number(item) / total) : [...SIDEBAR_DEFAULT_RATIOS];
+}
+function loadSidebarRatios() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SIDEBAR_LAYOUT_KEY) || "null");
+    return normalizeSidebarRatios(stored?.ratios);
+  } catch {
+    return [...SIDEBAR_DEFAULT_RATIOS];
+  }
+}
+function saveSidebarRatios() {
+  try { localStorage.setItem(SIDEBAR_LAYOUT_KEY, JSON.stringify({ version: 1, ratios: sidebarRatios })); } catch { }
+}
+function sidebarSizesForHeight(availableHeight) {
+  const sizes = sidebarRatios.map((ratio) => ratio * availableHeight);
+  if (availableHeight <= SIDEBAR_MIN_HEIGHTS.reduce((sum, height) => sum + height, 0)) {
+    const scale = availableHeight / SIDEBAR_MIN_HEIGHTS.reduce((sum, height) => sum + height, 0);
+    return SIDEBAR_MIN_HEIGHTS.map((height) => height * scale);
+  }
+  const locked = new Set();
+  for (let pass = 0; pass < 3; pass += 1) {
+    const remainingHeight = availableHeight - [...locked].reduce((sum, index) => sum + SIDEBAR_MIN_HEIGHTS[index], 0);
+    const remainingRatio = sidebarRatios.reduce((sum, ratio, index) => sum + (locked.has(index) ? 0 : ratio), 0);
+    let changed = false;
+    sizes.forEach((size, index) => {
+      if (locked.has(index)) { sizes[index] = SIDEBAR_MIN_HEIGHTS[index]; return; }
+      const next = remainingHeight * sidebarRatios[index] / remainingRatio;
+      if (next < SIDEBAR_MIN_HEIGHTS[index]) { locked.add(index); sizes[index] = SIDEBAR_MIN_HEIGHTS[index]; changed = true; }
+      else sizes[index] = next;
+    });
+    if (!changed) break;
+  }
+  return sizes;
+}
+function sidebarAvailableHeight(sidebar, splitters) {
+  const styles = getComputedStyle(sidebar);
+  const verticalPadding = Number.parseFloat(styles.paddingTop || 0) + Number.parseFloat(styles.paddingBottom || 0);
+  return Math.max(0, sidebar.clientHeight - verticalPadding - splitters.reduce((sum, splitter) => sum + splitter.getBoundingClientRect().height, 0));
+}
+function applySidebarLayout() {
+  const sidebar = document.querySelector(".library-panel");
+  const panes = [...document.querySelectorAll("[data-sidebar-pane]")];
+  const splitters = [...document.querySelectorAll("[data-sidebar-splitter]")];
+  if (!sidebar || panes.length !== 3 || splitters.length !== 2) return;
+  const sizes = sidebarSizesForHeight(sidebarAvailableHeight(sidebar, splitters));
+  panes.forEach((pane, index) => { pane.style.flex = `0 0 ${sizes[index]}px`; });
+}
+function updateSidebarRatiosFromPanes() {
+  const panes = [...document.querySelectorAll("[data-sidebar-pane]")];
+  const sizes = panes.map((pane) => pane.getBoundingClientRect().height);
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  if (total > 0) { sidebarRatios = sizes.map((size) => size / total); saveSidebarRatios(); }
+}
+function bindSidebarSplitters() {
+  sidebarRatios = loadSidebarRatios();
+  const panes = [...document.querySelectorAll("[data-sidebar-pane]")];
+  document.querySelectorAll("[data-sidebar-splitter]").forEach((splitter, index) => {
+    let drag = null;
+    splitter.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const top = panes[index].getBoundingClientRect().height;
+      const bottom = panes[index + 1].getBoundingClientRect().height;
+      drag = { startY: event.clientY, top, bottom };
+      splitter.classList.add("active");
+      splitter.setPointerCapture?.(event.pointerId);
+    });
+    splitter.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      const pairHeight = drag.top + drag.bottom;
+      const top = Math.max(SIDEBAR_MIN_HEIGHTS[index], Math.min(pairHeight - SIDEBAR_MIN_HEIGHTS[index + 1], drag.top + event.clientY - drag.startY));
+      panes[index].style.flex = `0 0 ${top}px`;
+      panes[index + 1].style.flex = `0 0 ${pairHeight - top}px`;
+    });
+    const stop = () => { if (!drag) return; drag = null; splitter.classList.remove("active"); updateSidebarRatiosFromPanes(); };
+    splitter.addEventListener("pointerup", stop);
+    splitter.addEventListener("pointercancel", stop);
+  });
+  applySidebarLayout();
+  window.addEventListener("resize", applySidebarLayout);
+}
 const dom = {
   page: $("page"), stage: $("canvas-stage"), ghost: $("placement-ghost"), elementsLayer: $("elements-layer"), gridLayer: $("grid-layer"),
   backgroundImage: $("background-image"), form: $("properties-form"), tableForm: $("table-properties"), multi: $("multi-properties"),
@@ -42,7 +130,7 @@ function isRecommendedForDocumentType(field, type) {
   return field.recommended === true;
 }
 function startCorePlacement(coreId, label = null) {
-  if (projectState.elements.some((element) => element.id === coreId)) {
+  if (coreId === "invoice_lines" && projectState.elements.some((element) => element.id === coreId)) {
     toast(coreId === "invoice_lines" ? "Positionstabelle wurde nicht eingefügt: Core-Element bereits vorhanden." : "Core-Feld bereits vorhanden.", "warning");
     return;
   }
@@ -94,8 +182,7 @@ function setupSettingsFromForm() {
 }
 function fieldMatchesSearch(field, query) {
   if (!query) return true;
-  const displayLabel = getFieldDisplayLabel(field, projectState.documentType).toLowerCase();
-  return displayLabel.includes(query) || field.id.toLowerCase().includes(query);
+  return getFieldSearchTerms(field, projectState.documentType).some((term) => term.toLowerCase().includes(query));
 }
 function renderFieldCategory(category, categoryFields) {
   const section = document.createElement("section");
@@ -163,7 +250,7 @@ function align(type) { const anchor = getSelectedElement(); if (!anchor) return;
 function distribute(axis) { const selected = selectedElements(); if (selected.length < 3) return; const ordered = [...selected].sort((a, b) => a[axis] - b[axis]); const end = axis === "x" ? ordered.at(-1).x + ordered.at(-1).width : ordered.at(-1).y + ordered.at(-1).height; const total = ordered.reduce((sum, element) => sum + (axis === "x" ? element.width : element.height), 0); const gap = (end - (axis === "x" ? ordered[0].x : ordered[0].y) - total) / (ordered.length - 1); edit(() => { let cursor = axis === "x" ? ordered[0].x : ordered[0].y; ordered.forEach((element, index) => { if (index > 0) { cursor += (axis === "x" ? ordered[index - 1].width : ordered[index - 1].height) + gap; element[axis] = cursor; } }); }); }
 function applySpacing(axis) { const anchor = getSelectedElement(); const gap = Math.max(0, Number($("spacing-value").value) || 0); if (!anchor || selectedElements().length < 2) return; const coordinate = axis === "x" ? "x" : "y"; const size = axis === "x" ? "width" : "height"; const others = selectedElements().filter((element) => element.uid !== anchor.uid); edit(() => { let cursor = anchor[coordinate] + anchor[size]; others.filter((element) => element[coordinate] >= anchor[coordinate]).sort((a, b) => a[coordinate] - b[coordinate]).forEach((element) => { element[coordinate] = cursor + gap; cursor = element[coordinate] + element[size]; }); }); }
 function copySelected() { const selected = selectedElements(); if (!selected.length) return false; projectState.clipboard = structuredClone(selected); toast(`${selected.length} Element${selected.length === 1 ? "" : "e"} kopiert.`, "success"); return true; }
-function paste() { const source = projectState.clipboard || []; if (!source.length) return; const before = capture(projectState); const used = new Set(projectState.elements.map((element) => element.id)); const added = []; source.forEach((original) => { if (original.elementClass === "core" && used.has(original.id)) { toast(`${original.name} wurde nicht eingefügt: Core-Element bereits vorhanden.`, "warning"); return; } const element = structuredClone(original); element.uid = `el_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; element.x = Math.min(210 - element.width, element.x + 2); element.y = Math.min(297 - element.height, element.y + 2); if (element.elementClass !== "core") { const base = `${element.id}_copy`; element.id = base; let suffix = 2; while (used.has(element.id)) element.id = `${base}_${suffix++}`; } used.add(element.id); projectState.elements.push(element); added.push(element.uid); }); if (added.length) { setSelection(added); record(before, projectState); toast(`${added.length} Element${added.length === 1 ? "" : "e"} eingefügt.`, "success"); render(); } }
+function paste() { const source = projectState.clipboard || []; if (!source.length) return; const before = capture(projectState); const used = new Set(projectState.elements.map((element) => element.id)); const added = []; source.forEach((original) => { if (original.elementClass === "core" && original.id === "invoice_lines" && used.has(original.id)) { toast("Positionstabelle bereits vorhanden.", "warning"); return; } const element = structuredClone(original); element.uid = `el_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; element.x = Math.min(210 - element.width, element.x + 2); element.y = Math.min(297 - element.height, element.y + 2); if (element.elementClass !== "core") { const base = `${element.id}_copy`; element.id = base; let suffix = 2; while (used.has(element.id)) element.id = `${base}_${suffix++}`; } used.add(element.id); projectState.elements.push(element); added.push(element.uid); }); if (added.length) { setSelection(added); record(before, projectState); toast(`${added.length} Element${added.length === 1 ? "" : "e"} eingefügt.`, "success"); render(); } }
 function updateTablePanel(table) {
   const tableFields = {
     name: "table-name",
@@ -245,4 +332,4 @@ $("table-test-data").addEventListener("change", (event) => { const table = getSe
 }));
 ["table-row-height", "table-min-row-height", "table-padding-horizontal", "table-padding-vertical", "table-line-height", "table-offset"].forEach((id) => $(id).addEventListener("change", (event) => { const table = getSelectedElement(); if (!table || table.type !== "table") return; edit(() => { const keys = { "table-row-height": "rowHeightMm", "table-min-row-height": "minRowHeightMm", "table-padding-horizontal": "cellPaddingHorizontalMm", "table-padding-vertical": "cellPaddingVerticalMm", "table-line-height": "lineHeight", "table-offset": "textOffsetYmm" }; table[keys[id]] = Number(event.target.value); }); })); document.querySelectorAll("input[name=table-row-mode]").forEach((input) => input.addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type === "table") edit(() => { table.rowMode = event.target.value; }); })); $("table-vertical-align").addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type === "table") edit(() => { table.verticalAlign = event.target.value; }); });
 dom.viewport.addEventListener("pointerdown", (event) => { if (event.button !== 1) return; event.preventDefault(); event.stopPropagation(); dom.viewport.classList.add("panning"); const start = { x: event.clientX, y: event.clientY, ...projectState.editor.camera }; try { dom.viewport.setPointerCapture(event.pointerId); } catch { } const move = (moveEvent) => { projectState.editor.camera.panX = start.panX + moveEvent.clientX - start.x; projectState.editor.camera.panY = start.panY + moveEvent.clientY - start.y; saveActiveTemplateView(); render(); }; const stop = () => { dom.viewport.classList.remove("panning"); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", stop); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", stop); }, true); dom.viewport.addEventListener("wheel", (event) => { event.preventDefault(); if (event.ctrlKey) setZoom(projectState.editor.zoom + (event.deltaY > 0 ? -.05 : .05)); else { projectState.editor.camera.panX += event.shiftKey ? event.deltaY : 0; projectState.editor.camera.panY += event.shiftKey ? 0 : event.deltaY; saveActiveTemplateView(); render(); } }, { passive: false });
-document.addEventListener("keydown", (event) => { if (inputFocused() || modalOpen()) return; const modifier = event.ctrlKey || event.metaKey; if (modifier && event.key.toLowerCase() === "a") { event.preventDefault(); setSelection(projectState.elements.map((element) => element.uid)); render(); } else if (modifier && event.key.toLowerCase() === "c") { event.preventDefault(); copySelected(); } else if (modifier && event.key.toLowerCase() === "v") { event.preventDefault(); paste(); } else if (modifier && event.key.toLowerCase() === "x") { event.preventDefault(); if (copySelected()) edit(removeSelectedElement); } else if (modifier && event.key.toLowerCase() === "d") { event.preventDefault(); if (copySelected()) paste(); } else if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey ? redo(projectState, restore) : undo(projectState, restore)) updateHistoryButtons(); } else if (modifier && event.key.toLowerCase() === "y") { event.preventDefault(); if (redo(projectState, restore)) updateHistoryButtons(); } else if (event.key === "Escape") { event.preventDefault(); cancelPlacement(); setSelection([]); render(); } else if (event.key === "Delete") { event.preventDefault(); edit(removeSelectedElement); } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); edit(() => { const step = event.shiftKey ? 1 : .1; moveSelectedElement(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0); }); } }); document.querySelectorAll("[data-align]").forEach((button) => button.addEventListener("click", () => align(button.dataset.align))); document.querySelectorAll("[data-distribute]").forEach((button) => button.addEventListener("click", () => distribute(button.dataset.distribute === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-apply]").forEach((button) => button.addEventListener("click", () => applySpacing(button.dataset.spacingApply === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-step]").forEach((button) => button.addEventListener("click", () => { const input = $("spacing-value"); input.value = Math.max(0, (Number(input.value) || 0) + Number(button.dataset.spacingStep)).toFixed(1); })); let propertyBefore = null; bindProperties(dom, () => render(), () => { if (!propertyBefore) propertyBefore = capture(projectState); }, () => { if (propertyBefore) { record(propertyBefore, projectState); propertyBefore = null; updateHistoryButtons(); } }); window.addEventListener("resize", centerCamera); render(); updateHistoryButtons(); centerCamera(); if (isFirstRun()) openFirstRunDialog();
+document.addEventListener("keydown", (event) => { if (inputFocused() || modalOpen()) return; const modifier = event.ctrlKey || event.metaKey; if (modifier && event.key.toLowerCase() === "a") { event.preventDefault(); setSelection(projectState.elements.map((element) => element.uid)); render(); } else if (modifier && event.key.toLowerCase() === "c") { event.preventDefault(); copySelected(); } else if (modifier && event.key.toLowerCase() === "v") { event.preventDefault(); paste(); } else if (modifier && event.key.toLowerCase() === "x") { event.preventDefault(); if (copySelected()) edit(removeSelectedElement); } else if (modifier && event.key.toLowerCase() === "d") { event.preventDefault(); if (copySelected()) paste(); } else if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey ? redo(projectState, restore) : undo(projectState, restore)) updateHistoryButtons(); } else if (modifier && event.key.toLowerCase() === "y") { event.preventDefault(); if (redo(projectState, restore)) updateHistoryButtons(); } else if (event.key === "Escape") { event.preventDefault(); cancelPlacement(); setSelection([]); render(); } else if (event.key === "Delete") { event.preventDefault(); edit(removeSelectedElement); } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); edit(() => { const step = event.shiftKey ? 1 : .1; moveSelectedElement(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0); }); } }); document.querySelectorAll("[data-align]").forEach((button) => button.addEventListener("click", () => align(button.dataset.align))); document.querySelectorAll("[data-distribute]").forEach((button) => button.addEventListener("click", () => distribute(button.dataset.distribute === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-apply]").forEach((button) => button.addEventListener("click", () => applySpacing(button.dataset.spacingApply === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-step]").forEach((button) => button.addEventListener("click", () => { const input = $("spacing-value"); input.value = Math.max(0, (Number(input.value) || 0) + Number(button.dataset.spacingStep)).toFixed(1); })); let propertyBefore = null; bindProperties(dom, () => render(), () => { if (!propertyBefore) propertyBefore = capture(projectState); }, () => { if (propertyBefore) { record(propertyBefore, projectState); propertyBefore = null; updateHistoryButtons(); } }); bindSidebarSplitters(); window.addEventListener("resize", centerCamera); render(); updateHistoryButtons(); centerCamera(); if (isFirstRun()) openFirstRunDialog();

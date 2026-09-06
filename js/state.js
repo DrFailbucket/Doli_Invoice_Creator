@@ -1,4 +1,5 @@
 import { createDefaultColumns, normalizeTableColumns } from "./tables.js";
+import { isRegistryFieldId } from "./fieldRegistry.js";
 
 export const PAGE_WIDTH_MM = 210;
 export const PAGE_HEIGHT_MM = 297;
@@ -146,9 +147,10 @@ export function createCoreElement(coreId, index, label = null) {
   return { ...createTextElement(index), uid: `el_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`, elementClass: "core", id: coreId, name, width: 30, height: 5, testValue: name };
 }
 
-function normalizeLegacyCoreId(id) {
+function normalizeLegacyCoreId(id, name = "") {
   if (id === "invoice_ref") return "object_ref";
   if (id === "invoice_date") return "object_date";
+  if (/^text_\d+$/.test(id || "") && /zahlungsziel|zahlungsbedingung/.test(String(name).toLowerCase())) return "object_payment_term";
   return id;
 }
 
@@ -161,14 +163,14 @@ function normalizePage(page = {}) {
 }
 
 function normalizeTextElement(element, index, usedIds) {
-  const normalizedId = normalizeLegacyCoreId(element.id);
-  let elementClass = element.elementClass === "core" && ["object_ref", "object_date", "invoice_lines"].includes(normalizedId) ? "core" : "custom";
+  const normalizedId = normalizeLegacyCoreId(element.id, element.name);
+  const elementClass = isRegistryFieldId(normalizedId) ? "core" : "custom";
   const baseId = normalizedId || `text_${index + 1}`;
   let id = baseId; let suffix = 2;
-  while (usedIds.has(id)) id = `${baseId}_${suffix++}`;
-  usedIds.add(id);
-  if (elementClass === "core" && id !== baseId) elementClass = "custom";
-  const coreId = elementClass === "core" && ["object_ref", "object_date", "invoice_lines"].includes(baseId) ? baseId : null;
+  if (elementClass !== "core") {
+    while (usedIds.has(id)) id = `${baseId}_${suffix++}`;
+    usedIds.add(id);
+  }
 
   if (element.type === "table") {
     const oldPadding = Number(element.cellPaddingMm) || 0;
@@ -186,7 +188,7 @@ function normalizeTextElement(element, index, usedIds) {
     if (!Array.isArray(element.columns)) element.columns = createDefaultColumns(Number(element.width) || 190);
     normalizeTableColumns(element);
   }
-  return { ...element, uid: element.uid || `el_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`, elementClass, id: coreId || id };
+  return { ...element, uid: element.uid || `el_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`, elementClass, id: elementClass === "core" ? baseId : id };
 }
 
 function normalizeElements(elements = []) {

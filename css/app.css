@@ -23,10 +23,15 @@ select, input, textarea { border: 1px solid var(--line); border-radius: 3px; bac
 .subheading { margin-bottom: 8px; font-size: 10px; }
 .core-button { background: #182b2c; }
 .core-badge { color: #10231e; background: var(--accent); padding: 3px 5px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
-.element-section { min-height: 0; margin-top: 20px; }
-.element-section .element-list { display: flex; flex-direction: column; max-height: none; overflow-y: auto; }
-.library-panel { display: flex; flex-direction: column; }
-.field-library-section { min-height: 180px; margin-top: 20px; overflow: hidden; }
+.library-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.sidebar-pane { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; overflow: hidden; }
+.element-library-pane { min-height: 110px; }
+.field-library-section { min-height: 180px; }
+.element-section { min-height: 100px; }
+.sidebar-pane-content { min-height: 0; overflow-y: auto; }
+.element-section .element-list { display: flex; flex-direction: column; }
+.sidebar-splitter { flex: 0 0 6px; height: 6px; margin: 0 -14px; border-top: 1px solid transparent; border-bottom: 1px solid transparent; cursor: row-resize; touch-action: none; }
+.sidebar-splitter:hover, .sidebar-splitter.active { border-color: var(--accent); background: rgba(73,194,154,.18); }
 .field-library-scope { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
 .field-library-scope label { display: grid; place-items: center; min-height: 28px; padding: 5px 4px; border: 1px solid var(--line); color: var(--muted); background: #11181e; font-size: 10px; text-align: center; cursor: pointer; }
 .field-library-scope label + label { border-left: 0; }
@@ -34,7 +39,7 @@ select, input, textarea { border: 1px solid var(--line); border-radius: 3px; bac
 .field-library-scope label:has(input:checked) { color: #092018; border-color: var(--accent); background: var(--accent); font-weight: 700; }
 .field-library-search { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .7px; }
 .field-library-search input { width: 100%; text-transform: none; letter-spacing: 0; }
-.field-library { max-height: 260px; overflow-y: auto; padding-right: 3px; }
+.field-library { min-height: 0; padding-right: 3px; }
 .field-library-empty { padding: 10px 8px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); background: #172029; font-size: 11px; }
 .field-category { margin-bottom: 14px; }
 .field-category-title { margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; }
@@ -45,8 +50,8 @@ select, input, textarea { border: 1px solid var(--line); border-radius: 3px; bac
 .field-library-item small { color: var(--muted); margin-top: 2px; font-size: 10px; }
 .field-library-item.recommended { border-color: rgba(73,194,154,.75); background: #182b2c; }
 .field-recommended { color: var(--accent); font-size: 11px; line-height: 14px; }
-.element-section { flex: 1; overflow: hidden; }
-.element-section .element-list { height: calc(100% - 24px); }
+.field-library-controls { display: flex; flex-direction: column; }
+.field-library-controls .field-library { flex: 1 1 auto; overflow-y: auto; }
 .icon-button { width: 34px; padding: 7px 0; font-size: 18px; line-height: 16px; }
 .icon-button:disabled { opacity: .35; cursor: default; }
 .text-element.multi-selected { outline: 1px dashed #5ec4ad; background: rgba(73,194,154,.06); }
