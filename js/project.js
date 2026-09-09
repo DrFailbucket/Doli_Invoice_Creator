@@ -6,7 +6,7 @@ function cleanElement(element) {
   return documentElement;
 }
 
-function validateProjectData(projectData) {
+export function validateProjectData(projectData) {
   if (!projectData || typeof projectData !== "object" || Array.isArray(projectData)) throw new Error("Ungültiges Projektformat: Projektdaten fehlen.");
   if (!Array.isArray(projectData.elements) && !projectData.templates) throw new Error("Ungültiges Projektformat: elements oder templates fehlt.");
   if (projectData.elements && (!Array.isArray(projectData.elements) || projectData.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error("Ungültiges Projektformat: elements ist ungültig.");
