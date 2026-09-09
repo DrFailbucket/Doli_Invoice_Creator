@@ -8,7 +8,7 @@ Der Creator erzeugt selbst keine Rechnungen und keine PDFs. Er erstellt Layoutde
 
 ## Ausprobieren
 
-[Editor öffnen](https://drfailbucket.github.io/Doli_Invoice_Creator/)
+# [Editor öffnen](https://drfailbucket.github.io/Doli_Invoice_Creator/)
 
 ## Zweck
 

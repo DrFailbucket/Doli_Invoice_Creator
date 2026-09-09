@@ -8,7 +8,7 @@ The Creator does not generate invoices or PDFs. It creates layout definitions an
 
 ## Try it
 
-[Open the Editor](https://drfailbucket.github.io/Doli_Invoice_Creator/)
+# [Open the Editor](https://drfailbucket.github.io/Doli_Invoice_Creator/)
 
 ## What it does
 
