@@ -7,7 +7,6 @@ import { clamp, readFileAsDataUrl } from "./utils.js";
 import { capture, record, undo, redo, canUndo, canRedo, clear } from "./history.js";
 import { validateTable, resizeColumn, scaleColumns } from "./tables.js";
 import { layoutTableRows } from "./rowLayout.js";
-import { paginateInvoiceRows } from "./pagination.js";
 import { TEST_ROWS } from "./tables.js";
 import { FIELD_REGISTRY, getFieldsForDocumentType, getRecommendedFieldsForDocumentType, getFieldDisplayLabel, getFieldSearchTerms } from "./fieldRegistry.js";
 import { getSettings, updateSettings } from "./settings.js";
@@ -114,7 +113,7 @@ const dom = {
   fieldLibrary: $("field-library"), fieldLibraryCount: $("field-library-count"), fieldLibrarySearch: $("field-library-search"), fieldLibraryScope: [...document.querySelectorAll("input[name=field-library-scope]")],
   newProjectDocumentTypes: [...document.querySelectorAll("input[name=new-project-document-type]")],
   firstRunDialog: $("first-run-dialog"), firstRunForm: $("first-run-form"), setupGridMm: $("setup-grid-mm"), setupSnapToGrid: $("setup-snap-to-grid"), setupGridVisible: $("setup-grid-visible"), setupAutosaveEnabled: $("setup-autosave-enabled"), setupRecoveryEnabled: $("setup-recovery-enabled"), autosaveRecoveryDialog: $("autosave-recovery-dialog"), autosaveRecoveryForm: $("autosave-recovery-form"),
-  paginationRowCount: $("pagination-row-count"), paginationPreview: $("pagination-preview"), templateTabs: [...document.querySelectorAll("[data-template]")]
+  templateTabs: [...document.querySelectorAll("[data-template]")], templateModes: [...document.querySelectorAll("[data-template-mode]")], templateSubtabs: document.querySelector("[data-template-subtabs]")
 };
 ["property-name", "property-id", "property-x", "property-y", "property-width", "property-height", "property-font-family", "property-font-size", "property-color", "property-multiline", "property-test-value"].forEach((id) => { dom[id] = $(id); });
 dom.fontWeight = [...document.querySelectorAll("input[name=font-weight]")]; dom.align = [...document.querySelectorAll("input[name=align]")];
@@ -243,19 +242,18 @@ function renderFieldLibrary() {
   });
 }
 function renderElementList() { dom.count.textContent = projectState.elements.length; dom.elementList.replaceChildren(); projectState.elements.forEach((element) => { const item = document.createElement("div"); item.className = `element-item${projectState.selection.uids.includes(element.uid) ? " selected" : ""}${projectState.selection.anchorUid === element.uid ? " anchor" : ""}`; item.innerHTML = `<strong>${escapeHtml(element.name)}</strong><small>${escapeHtml(element.id)}${element.type === "table" ? " · table" : ""}</small>`; item.addEventListener("click", (event) => select(element.uid, event, event.shiftKey)); dom.elementList.append(item); }); }
-function paginationRows() { const count = Math.max(1, Math.min(500, Number(projectState.editor.paginationRowCount) || 25)); return Array.from({ length: count }, (_, index) => ({ ...TEST_ROWS[index % TEST_ROWS.length], line_position: String(index + 1) })); }
-function renderTemplateTabs() { dom.templateTabs.forEach((button) => { const type = button.dataset.template; button.classList.toggle("active", type === projectState.activeTemplate); button.querySelector(".template-status").textContent = templateHasContent(type) ? "●" : "○"; }); }
-function renderPaginationPreview() {
-  dom.paginationRowCount.value = projectState.editor.paginationRowCount;
-  const result = paginateInvoiceRows(projectState, paginationRows());
-  if (!result.success) {
-    dom.paginationPreview.innerHTML = `<div class="error">${escapeHtml(result.message || result.error)}</div>`;
-    return;
-  }
-  dom.paginationPreview.innerHTML = [`<div><strong>Testpositionen:</strong> ${projectState.editor.paginationRowCount}</div>`, `<div><strong>Seiten:</strong> ${result.totalPages}</div>`, ...result.pages.map((page) => `<div>${page.pageNumber} · ${escapeHtml(page.label || TEMPLATE_LABELS[page.template])} · ${page.rows.length} Positionen</div>`)].join("");
+function renderTemplateTabs() {
+  const multi = projectState.activeTemplate !== "single";
+  dom.templateModes.forEach((button) => button.classList.toggle("active", button.dataset.templateMode === (multi ? "multi" : "single")));
+  dom.templateSubtabs.hidden = !multi;
+  dom.templateTabs.forEach((button) => {
+    const type = button.dataset.template;
+    button.classList.toggle("active", type === projectState.activeTemplate);
+    button.querySelector(".template-status").textContent = templateHasContent(type) ? "●" : "○";
+  });
 }
 function updateMultiPanel() { const multiple = projectState.selection.uids.length > 1; dom.multi.hidden = !multiple; if (multiple) { $("multi-count").textContent = `${projectState.selection.uids.length} Elemente ausgewählt`; $("multi-anchor").textContent = getSelectedElement()?.name || ""; } }
-function render() { renderCanvas(dom, render, select, () => { dom.dragBefore = capture(projectState); }, () => { if (dom.dragBefore) record(dom.dragBefore, projectState); updateHistoryButtons(); scheduleAutosave(); }); const selected = getSelectedElement(); if (projectState.selection.uids.length === 1 && selected?.type === "table") { dom.form.hidden = true; dom.tableForm.hidden = false; dom.empty.hidden = true; dom.label.textContent = "AUSGEWÄHLT"; updateTablePanel(selected); } else if (projectState.selection.uids.length === 1) { dom.tableForm.hidden = true; updatePropertiesPanel(dom, render); } else { dom.form.hidden = true; dom.tableForm.hidden = true; dom.empty.hidden = Boolean(projectState.selection.uids.length); dom.label.textContent = projectState.selection.uids.length ? "MEHRFACH AUSGEWÄHLT" : "NICHTS AUSGEWÄHLT"; } updateMultiPanel(); renderFieldLibrary(); renderElementList(); renderTemplateTabs(); renderPaginationPreview(); dom.currentDocumentType.textContent = projectState.documentType; dom.zoomLabel.textContent = `${TEMPLATE_LABELS[projectState.activeTemplate]} · ${Math.round(projectState.editor.zoom * 100)} %`; dom.zoomSelect.value = String(Math.round(projectState.editor.zoom * 100)); dom.gridToggle.checked = projectState.editor.gridVisible; dom.gridSize.value = String(projectState.editor.gridMm); dom.snapToggle.checked = projectState.editor.snapToGrid; updateHistoryButtons(); }
+function render() { renderCanvas(dom, render, select, () => { dom.dragBefore = capture(projectState); }, () => { if (dom.dragBefore) record(dom.dragBefore, projectState); updateHistoryButtons(); scheduleAutosave(); }); const selected = getSelectedElement(); if (projectState.selection.uids.length === 1 && selected?.type === "table") { dom.form.hidden = true; dom.tableForm.hidden = false; dom.empty.hidden = true; dom.label.textContent = "AUSGEWÄHLT"; updateTablePanel(selected); } else if (projectState.selection.uids.length === 1) { dom.tableForm.hidden = true; updatePropertiesPanel(dom, render); } else { dom.form.hidden = true; dom.tableForm.hidden = true; dom.empty.hidden = Boolean(projectState.selection.uids.length); dom.label.textContent = projectState.selection.uids.length ? "MEHRFACH AUSGEWÄHLT" : "NICHTS AUSGEWÄHLT"; } updateMultiPanel(); renderFieldLibrary(); renderElementList(); renderTemplateTabs(); dom.currentDocumentType.textContent = projectState.documentType; dom.zoomLabel.textContent = `${TEMPLATE_LABELS[projectState.activeTemplate]} · ${Math.round(projectState.editor.zoom * 100)} %`; dom.zoomSelect.value = String(Math.round(projectState.editor.zoom * 100)); dom.gridToggle.checked = projectState.editor.gridVisible; dom.gridSize.value = String(projectState.editor.gridMm); dom.snapToggle.checked = projectState.editor.snapToGrid; updateHistoryButtons(); }
 function updateHistoryButtons() { dom.undo.disabled = !canUndo(); dom.redo.disabled = !canRedo(); }
 function setZoom(zoom) { projectState.editor.zoom = Math.max(.1, Math.min(6, zoom)); saveActiveTemplateView(); render(); }
 function centerCamera() { projectState.editor.camera = { panX: 0, panY: 0 }; saveActiveTemplateView(); render(); const v = dom.viewport.getBoundingClientRect(); const p = dom.page.getBoundingClientRect(); dom.viewport.scrollLeft += p.left + p.width / 2 - (v.left + v.width / 2); dom.viewport.scrollTop += p.top + p.height / 2 - (v.top + v.height / 2); }
@@ -329,8 +327,11 @@ dom.fieldLibraryScope.forEach((input) => input.addEventListener("change", (event
   fieldLibraryScope = event.target.value === "all" ? "all" : "document";
   renderFieldLibrary();
 }));
+dom.templateModes.forEach((button) => button.addEventListener("click", () => {
+  const target = button.dataset.templateMode === "single" ? "single" : (projectState.activeTemplate === "single" ? "first" : projectState.activeTemplate);
+  if (switchTemplate(target)) centerCamera(); else render();
+}));
 dom.templateTabs.forEach((button) => button.addEventListener("click", () => { if (switchTemplate(button.dataset.template)) centerCamera(); else render(); }));
-dom.paginationRowCount.addEventListener("change", () => { projectState.editor.paginationRowCount = Math.max(1, Math.min(500, Number(dom.paginationRowCount.value) || 25)); render(); scheduleAutosave(); });
 ["property-name", "property-id", "property-x", "property-y", "property-width", "property-height", "property-font-family", "property-font-size", "property-color", "property-multiline", "property-test-value"].forEach((id) => $(id).addEventListener("change", () => scheduleAutosave()));
 dom.page.addEventListener("pointermove", (event) => { if (!projectState.placement.active) return; const rect = dom.page.getBoundingClientRect(); dom.ghost.style.left = `${Math.max(0, Math.min(rect.width, event.clientX - rect.left))}px`; dom.ghost.style.top = `${Math.max(0, Math.min(rect.height, event.clientY - rect.top))}px`; }); dom.page.addEventListener("pointerdown", (event) => { if (event.button === 1) return; if (projectState.placement.active) { const rect = dom.page.getBoundingClientRect(); edit(() => { addTextElement({ x: (event.clientX - rect.left) / rect.width * 210, y: (event.clientY - rect.top) / rect.height * 297 }, projectState.placement.coreId); cancelPlacement(); }); return; } if (event.target === dom.page || event.target === dom.gridLayer || event.target === dom.backgroundImage) { setSelection([]); render(); } });
 $("table-test-data").addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type !== "table") return; edit(() => { table.showTestData = event.target.checked; }); });

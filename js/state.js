@@ -44,8 +44,7 @@ export const projectState = {
     zoom: 1,
     camera: { panX: 0, panY: 0 },
     templateViews: createTemplateViews(),
-    backgroundDataUrls: {},
-    paginationRowCount: 25
+    backgroundDataUrls: {}
   },
   selection: { uids: [], anchorUid: null, lastUid: null },
   placement: { active: false, coreId: null, label: null },
@@ -224,7 +223,6 @@ export function replaceProject(nextProject) {
   projectState.editor.gridVisible = nextProject.editor?.gridVisible !== false;
   projectState.editor.templateViews = { ...createTemplateViews(), ...(nextProject.editor?.templateViews || {}) };
   projectState.editor.backgroundDataUrls = {};
-  projectState.editor.paginationRowCount = Number(nextProject.editor?.paginationRowCount) || 25;
   projectState.activeTemplate = TEMPLATE_TYPES.includes(nextProject.editor?.activeTemplate) ? nextProject.editor.activeTemplate : TEMPLATE_TYPES.includes(nextProject.activeTemplate) ? nextProject.activeTemplate : "single";
   const view = projectState.editor.templateViews[projectState.activeTemplate] || { zoom: nextProject.editor?.zoom || 1, camera: nextProject.editor?.camera || { panX: 0, panY: 0 } };
   projectState.editor.zoom = Number.isFinite(Number(view.zoom)) ? Math.max(.1, Math.min(6, Number(view.zoom))) : 1;
@@ -243,8 +241,7 @@ export function resetProject(documentType = "invoice") {
       snapToGrid: true,
       gridVisible: true,
       templateViews: createTemplateViews(),
-      activeTemplate: "single",
-      paginationRowCount: 25
+      activeTemplate: "single"
     }
   });
   projectState.clipboard = [];

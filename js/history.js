@@ -11,8 +11,7 @@ function documentSnapshot(state) {
       gridMm: state.editor.gridMm,
       snapToGrid: state.editor.snapToGrid,
       gridVisible: state.editor.gridVisible,
-      templateViews: state.editor.templateViews,
-      paginationRowCount: state.editor.paginationRowCount
+      templateViews: state.editor.templateViews
     }
   });
 }

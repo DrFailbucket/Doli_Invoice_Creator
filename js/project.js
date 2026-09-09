@@ -30,8 +30,7 @@ export function projectForExport() {
       snapToGrid: projectState.editor.snapToGrid,
       gridVisible: projectState.editor.gridVisible,
       templateViews: projectState.editor.templateViews,
-      activeTemplate: projectState.activeTemplate,
-      paginationRowCount: projectState.editor.paginationRowCount
+      activeTemplate: projectState.activeTemplate
     }
   };
 }
