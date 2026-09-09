@@ -21,6 +21,7 @@ Mit dem Editor lassen sich A4-Dokumentlayouts visuell gestalten, Dolibarr-Felder
 - Dolibarr-Feldbibliothek mit Core-Feldern, benutzerdefinierten Feldern, Aliasen und generischen Extrafeld-Mustern
 - Feldsuche, Dokumenttyp-Filter, Empfehlungen und kontextabhängige Bezeichnungen
 - Editor für die Rechnungstabelle mit Spaltenbreiten, Ausrichtung, Umbruch und Zeilenlayout-Vorschau
+- Unabhängige einseitige und mehrseitige Layout-Templates: `single`, `first`, `middle` und `last`
 - Schriftart, Schriftgröße, Schriftschnitt, Textfarbe, Ausrichtung und mehrzeiliger Text
 - Raster, Einrasten, Zoom und Canvas-Navigation/Pan
 - Mehrfachauswahl, Ausrichten, Verteilen und Abstände
@@ -34,17 +35,17 @@ Mit dem Editor lassen sich A4-Dokumentlayouts visuell gestalten, Dolibarr-Felder
 - Er erzeugt selbst keine Rechnungen und keine PDFs.
 - Er bindet keine Live-Dolibarr-Daten an.
 - Er bietet kein Backend, kein Benutzerkonto und keinen Cloud-Projektspeicher.
-- Mehrseiten-Templates sind noch nicht produktionsreif.
+- Er berechnet keine Laufzeit-Paginierung und entscheidet nicht, wie viele Seiten ein echtes Dokument benötigt.
 
 ## Funktionsweise
 
 Der Creator definiert, wo Inhalte erscheinen: Templates, Hintergründe, Felder, Positionen, Größen, Formatierungen und Tabellengrößen. Ein separates Dolibarr-PDF-Renderer-Modul entscheidet, welche Laufzeitdaten angezeigt werden, und erzeugt das eigentliche PDF.
 
-Einseitige Templates sind derzeit funktionsfähig. Mehrseiten-Templates sind der nächste größere Entwicklungsschritt des Creators.
+Der Creator unterstützt unabhängige einseitige und mehrseitige Layouts. Mehrseiten-Projekte verwenden getrennte Templates für erste Seite, Zwischenseite und letzte Seite. Die Zwischenseite dient als wiederverwendbare Vorlage für beliebig viele Zwischenseiten. Die tatsächliche Laufzeit-Paginierung übernimmt der PDF-Renderer; er entscheidet, ob `single` oder `first` + `middle` 0..N-mal + `last` verwendet wird, und erzeugt das eigentliche PDF.
 
 ## Aktueller Stand
 
-Der einseitige Editor, der Feldmapping-Workflow, die Rechnungstabelle, JSON-Import/-Export und der lokale Recovery-Workflow sind verfügbar. Vorhandene Template-Strukturen für weitere Seiten sind als Vorschau bzw. Entwicklungsunterstützung zu verstehen, nicht als fertiger Mehrseiten-Workflow.
+Die einseitigen und mehrseitigen Layout-Workflows, das Feldmapping, die Rechnungstabelle, JSON-Import/-Export und der lokale Recovery-Workflow sind verfügbar. Die Laufzeitverteilung der Seiten bleibt Aufgabe des PDF-Renderers.
 
 ## Autosave und Recovery
 
@@ -96,6 +97,6 @@ Der Editor läuft clientseitig und benötigt weder Konto noch Backend. Der Edito
 - [x] Editor für die Rechnungstabelle
 - [x] JSON-Import/-Export
 - [x] Lokales Autosave und Recovery
-- [ ] Workflow für Mehrseiten-Templates
+- [x] Workflow für Mehrseiten-Templates
 - [ ] Weitere Dokumenttyp-Workflows
 - [ ] Weitere UX- und Editor-Verbesserungen

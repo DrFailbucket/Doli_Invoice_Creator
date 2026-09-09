@@ -21,6 +21,7 @@ Design A4 document layouts visually, place Dolibarr fields, configure an invoice
 - Dolibarr field library with core fields, custom fields, aliases, and generic extrafield patterns
 - Field search, document-type scope, recommendations, and contextual labels
 - Invoice line table editor with column sizing, alignment, wrapping, and row layout preview
+- Independent single-page and multi-page layout templates: `single`, `first`, `middle`, and `last`
 - Font family, size, weight, text color, alignment, and multiline text
 - Grid, snapping, zoom, and canvas navigation/panning
 - Multi-selection, alignment, distribution, and spacing tools
@@ -34,17 +35,17 @@ Design A4 document layouts visually, place Dolibarr fields, configure an invoice
 - It does not create invoices or PDFs itself.
 - It does not connect to live Dolibarr data.
 - It does not provide a backend, account system, or cloud project store.
-- Multi-page template support is not production-ready yet.
+- It does not calculate runtime pagination or decide how many pages a real document needs.
 
 ## How it works
 
 The Creator defines where content appears: templates, backgrounds, fields, positions, sizes, styles, and table geometry. A separate Dolibarr PDF renderer decides which runtime data is displayed and produces the actual PDF.
 
-Single-page templates are currently functional. Multi-page template support is the next major Creator development step.
+The Creator supports independent single-page and multi-page layouts. Multi-page projects use separate first, middle, and last page templates. The middle template acts as a reusable layout for any number of intermediate pages. Actual runtime pagination is handled by the PDF renderer, which decides whether to use `single` or `first` + `middle` 0..N times + `last` and produces the actual PDF.
 
 ## Current status
 
-The single-page editor, field mapping workflow, invoice line table, JSON import/export, and local recovery workflow are available. Existing template scaffolding for additional pages should be treated as preview/development support, not as a finished multi-page workflow.
+The single-page and multi-page layout workflows, field mapping, invoice line table, JSON import/export, and local recovery workflow are available. Runtime page distribution remains the responsibility of the PDF renderer.
 
 ## Autosave and recovery
 
@@ -96,6 +97,6 @@ The editor is client-side and requires no account or backend. Projects are not u
 - [x] Invoice line table editor
 - [x] JSON import/export
 - [x] Local autosave and recovery
-- [ ] Multi-page template workflow
+- [x] Multi-page template workflow
 - [ ] Additional document-type workflows
 - [ ] Further UX and editor improvements
