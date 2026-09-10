@@ -78,6 +78,10 @@ Wenn aktiviert, speichert das Autosave das aktuelle Projekt nach einer kurzen Ve
 
 Binäre Daten von Hintergrundbildern werden absichtlich nicht im Autosave gespeichert. Nach einer Wiederherstellung bleiben Layout und platzierte Elemente erhalten; das lokale Hintergrundbild muss bei Bedarf erneut ausgewählt werden.
 
+## Übersetzungen
+
+Die Übersetzungen liegen in `data/i18n/`. Für eine weitere Sprache werden nur eine neue Übersetzungsdatei und ein Eintrag in `data/i18n/index.json` benötigt; JavaScript muss nicht geändert werden. Englisch ist der kanonische Fallback für fehlende Übersetzungen. Fehlt auch der englische Schlüssel, wird der vorhandene Standardtext verwendet.
+
 ## Hintergrundbilder
 
 Jedes Template kann ein eigenes Hintergrundbild verwenden. Im exportierten JSON werden nur Dateiname bzw. Referenz-Metadaten gespeichert, nicht die Bilddaten selbst. Binärdaten von Hintergrundbildern sind auch im Autosave ausgeschlossen; nach Import oder Recovery muss das lokale Bild bei Bedarf erneut ausgewählt werden.
@@ -96,6 +100,7 @@ Danach [http://127.0.0.1:8001/](http://127.0.0.1:8001/) in einem modernen Browse
 
 - `index.html`, `css/` und `js/` enthalten den Browser-Editor.
 - `data/fieldpacks/` enthält dynamisch geladene Branchen-Feldpakete.
+- `data/i18n/` enthält den JSON-Übersetzungskatalog und die Sprachdateien.
 - `README.md` und `README.de.md` enthalten die öffentliche Projektdokumentation.
 
 ## Tastaturkürzel

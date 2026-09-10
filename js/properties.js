@@ -1,10 +1,11 @@
 import { projectState, getSelectedElement } from "./state.js";
 import { clamp } from "./utils.js";
+import { t } from "./i18n.js";
 
 const fields = { name: "property-name", id: "property-id", x: "property-x", y: "property-y", width: "property-width", height: "property-height", fontFamily: "property-font-family", fontSizePt: "property-font-size", color: "property-color", multiline: "property-multiline", testValue: "property-test-value" };
 
 export function updatePropertiesPanel(dom, onChange) {
-  const element = getSelectedElement(); dom.form.hidden = !element; dom.empty.hidden = Boolean(element); dom.label.textContent = element ? "AUSGEWÄHLT" : "NICHTS AUSGEWÄHLT"; if (!element) return;
+  const element = getSelectedElement(); dom.form.hidden = !element; dom.empty.hidden = Boolean(element); dom.label.textContent = element ? t("status.selected", "AUSGEWÄHLT") : t("status.nothingSelected", "NICHTS AUSGEWÄHLT"); if (!element) return;
   Object.entries(fields).forEach(([key, id]) => { dom[id].value = element[key]; });
   dom["property-id"].readOnly = element.elementClass === "core";
   dom.fontWeight.forEach((input) => { input.checked = input.value === element.fontWeight; }); dom.align.forEach((input) => { input.checked = input.value === element.align; });
@@ -20,7 +21,7 @@ export function bindProperties(dom, onChange, onBeforeChange, onAfterChange) {
         if (element.elementClass === "core") { dom[id].value = element.id; return; }
         const nextId = dom[id].value.trim();
         const invalid = !/^[a-zA-Z0-9_.-]+$/.test(nextId) || projectState.elements.some((item) => item.uid !== element.uid && item.id === nextId);
-        dom[id].setCustomValidity(invalid ? "ID muss eindeutig sein und darf nur Buchstaben, Zahlen, _, ., - enthalten." : "");
+        dom[id].setCustomValidity(invalid ? t("toast.idValidation", "ID muss eindeutig sein und darf nur Buchstaben, Zahlen, _, ., - enthalten.") : "");
         if (invalid) return;
       }
       if (["x", "y", "width", "height", "fontSizePt"].includes(key)) {

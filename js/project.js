@@ -1,5 +1,6 @@
 import { projectState, replaceProject } from "./state.js";
 import { downloadJson, readFileAsText } from "./utils.js";
+import { t } from "./i18n.js";
 
 function cleanElement(element) {
   const { showTestData, layoutResult, cellPaddingMm, ...documentElement } = element;
@@ -7,13 +8,13 @@ function cleanElement(element) {
 }
 
 export function validateProjectData(projectData) {
-  if (!projectData || typeof projectData !== "object" || Array.isArray(projectData)) throw new Error("Ungültiges Projektformat: Projektdaten fehlen.");
-  if (!Array.isArray(projectData.elements) && !projectData.templates) throw new Error("Ungültiges Projektformat: elements oder templates fehlt.");
-  if (projectData.elements && (!Array.isArray(projectData.elements) || projectData.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error("Ungültiges Projektformat: elements ist ungültig.");
-  if (projectData.templates && (typeof projectData.templates !== "object" || Array.isArray(projectData.templates))) throw new Error("Ungültiges Projektformat: templates ist ungültig.");
+  if (!projectData || typeof projectData !== "object" || Array.isArray(projectData)) throw new Error(t("project.invalidMissing", "Ungültiges Projektformat: Projektdaten fehlen."));
+  if (!Array.isArray(projectData.elements) && !projectData.templates) throw new Error(t("project.invalidRoot", "Ungültiges Projektformat: elements oder templates fehlt."));
+  if (projectData.elements && (!Array.isArray(projectData.elements) || projectData.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error(t("project.invalidElements", "Ungültiges Projektformat: elements ist ungültig."));
+  if (projectData.templates && (typeof projectData.templates !== "object" || Array.isArray(projectData.templates))) throw new Error(t("project.invalidTemplates", "Ungültiges Projektformat: templates ist ungültig."));
   if (projectData.templates) Object.values(projectData.templates).forEach((template) => {
-    if (template && (typeof template !== "object" || Array.isArray(template))) throw new Error("Ungültiges Projektformat: template ist ungültig.");
-    if (template?.elements && (!Array.isArray(template.elements) || template.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error("Ungültiges Projektformat: template elements ist ungültig.");
+    if (template && (typeof template !== "object" || Array.isArray(template))) throw new Error(t("project.invalidTemplate", "Ungültiges Projektformat: template ist ungültig."));
+    if (template?.elements && (!Array.isArray(template.elements) || template.elements.some((element) => !element || typeof element !== "object" || Array.isArray(element)))) throw new Error(t("project.invalidTemplateElements", "Ungültiges Projektformat: template elements ist ungültig."));
   });
 }
 

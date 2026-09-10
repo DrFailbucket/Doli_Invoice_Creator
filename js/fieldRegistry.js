@@ -1,3 +1,5 @@
+import { getLocalizedFieldLabel, getLocalizedFieldSearchTerms } from "./i18n.js";
+
 const ALL_DOCUMENT_TYPES = Object.freeze(["invoice", "proposal", "order", "shipment"]);
 const CONTACT_DOCUMENT_TYPES = Object.freeze(["invoice", "proposal", "order"]);
 const INVOICE_DOCUMENT_TYPES = Object.freeze(["invoice"]);
@@ -428,14 +430,13 @@ export function getRecommendedFieldsForDocumentType(type) {
 }
 
 export function getFieldDisplayLabel(field, documentType) {
-  return FIELD_DISPLAY_LABEL_OVERRIDES[documentType]?.[field.id] || field.label;
+  const fallback = FIELD_DISPLAY_LABEL_OVERRIDES[documentType]?.[field.id] || field.label;
+  return getLocalizedFieldLabel({ ...field, label: fallback }, documentType);
 }
 
 export function getFieldSearchTerms(field, documentType) {
   return Object.freeze([
-    field.label,
-    field.id,
-    getFieldDisplayLabel(field, documentType),
+    ...getLocalizedFieldSearchTerms({ ...field, label: getFieldDisplayLabel(field, documentType) }, documentType),
     ...(FIELD_SEARCH_ALIASES[field.id] || [])
   ]);
 }

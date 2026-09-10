@@ -10,6 +10,7 @@ import { layoutTableRows } from "./rowLayout.js";
 import { TEST_ROWS } from "./tables.js";
 import { FIELD_REGISTRY, getFieldsForDocumentType, getRecommendedFieldsForDocumentType, getFieldDisplayLabel, getFieldSearchTerms } from "./fieldRegistry.js";
 import { loadFieldPacks } from "./fieldPacks.js";
+import { initializeI18n, setLanguage, getLanguage, getLanguages, getLocalizedPackName, getLocalizedPackField, onLanguageChange, applyTranslations, t } from "./i18n.js";
 import { getSettings, updateSettings } from "./settings.js";
 import { isFirstRun, completeFirstRun } from "./firstRun.js";
 import { hasAutosave, restoreAutosave, discardAutosave, scheduleAutosave } from "./autosave.js";
@@ -114,7 +115,7 @@ const dom = {
   empty: $("empty-properties"), label: $("selection-label"), elementList: $("element-list"), count: $("element-count"),
   zoomSelect: $("zoom-select"), zoomLabel: $("zoom-label"), currentDocumentType: $("current-document-type"), viewport: $("canvas-viewport"), gridToggle: $("grid-toggle"), gridSize: $("grid-size"),
   snapToggle: $("snap-toggle"), newProjectButton: $("new-project-button"), changeDocumentTypeButton: $("change-document-type-button"), newProjectDialog: $("new-project-dialog"), newProjectForm: $("new-project-form"), documentTypeDialogTitle: $("document-type-dialog-title"), documentTypeDialogSubtitle: $("document-type-dialog-subtitle"), documentTypeDialogConfirm: $("document-type-dialog-confirm"), projectInput: $("project-input"), backgroundInput: $("background-input"), undo: $("undo-button"), redo: $("redo-button"), toast: $("toast-region"),
-  fieldLibrary: $("field-library"), fieldLibraryCount: $("field-library-count"), fieldLibrarySearch: $("field-library-search"), fieldLibraryScope: [...document.querySelectorAll("input[name=field-library-scope]")], fieldLibraryIndustryControl: $("field-library-industry-control"), fieldLibraryIndustry: $("field-library-industry"),
+  fieldLibrary: $("field-library"), fieldLibraryCount: $("field-library-count"), fieldLibrarySearch: $("field-library-search"), fieldLibraryScope: [...document.querySelectorAll("input[name=field-library-scope]")], fieldLibraryIndustryControl: $("field-library-industry-control"), fieldLibraryIndustry: $("field-library-industry"), languageSelect: $("language-select"),
   newProjectDocumentTypes: [...document.querySelectorAll("input[name=new-project-document-type]")],
   firstRunDialog: $("first-run-dialog"), firstRunForm: $("first-run-form"), setupGridMm: $("setup-grid-mm"), setupSnapToGrid: $("setup-snap-to-grid"), setupGridVisible: $("setup-grid-visible"), setupAutosaveEnabled: $("setup-autosave-enabled"), setupRecoveryEnabled: $("setup-recovery-enabled"), autosaveRecoveryDialog: $("autosave-recovery-dialog"), autosaveRecoveryForm: $("autosave-recovery-form"),
   templateTabs: [...document.querySelectorAll("[data-template]")], templateModes: [...document.querySelectorAll("[data-template-mode]")], templateSubtabs: document.querySelector("[data-template-subtabs]")
@@ -124,6 +125,8 @@ dom.fontWeight = [...document.querySelectorAll("input[name=font-weight]")]; dom.
 
 function inputFocused() { const element = document.activeElement; return element && (element.matches("input, textarea, select, [contenteditable=true]") || element.isContentEditable); }
 function modalOpen() { return dom.newProjectDialog.open || dom.firstRunDialog.open || dom.autosaveRecoveryDialog.open; }
+function formatText(key, fallback, values = {}) { return Object.entries(values).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), t(key, fallback)); }
+function localizedColumnName(column) { return t(`table.column.${column.id}`, column.name); }
 function toast(message, type = "info") { const item = document.createElement("div"); item.className = `toast ${type}`; item.textContent = message; dom.toast.append(item); setTimeout(() => item.remove(), 2800); }
 function restore(snapshot) { const view = { zoom: projectState.editor.zoom, camera: projectState.editor.camera }; const transientEditor = { backgroundDataUrls: projectState.editor.backgroundDataUrls }; const clipboard = projectState.clipboard; const selection = projectState.selection; Object.assign(projectState, snapshot); projectState.editor = { ...projectState.editor, ...transientEditor, ...view }; projectState.clipboard = clipboard; setSelection(selection.uids, selection.lastUid); render(); scheduleAutosave(); }
 function edit(action) { const before = capture(projectState); action(); record(before, projectState); render(); updateHistoryButtons(); scheduleAutosave(); }
@@ -135,7 +138,7 @@ function isRecommendedForDocumentType(field, type) {
 }
 function startCorePlacement(coreId, label = null) {
   if (coreId === "invoice_lines" && projectState.elements.some((element) => element.id === coreId)) {
-    toast(coreId === "invoice_lines" ? "Positionstabelle wurde nicht eingefügt: Core-Element bereits vorhanden." : "Core-Feld bereits vorhanden.", "warning");
+    toast(coreId === "invoice_lines" ? t("toast.coreTableExists", "Positionstabelle wurde nicht eingefügt: Core-Element bereits vorhanden.") : t("toast.coreFieldExists", "Core-Feld bereits vorhanden."), "warning");
     return;
   }
   beginPlacement(coreId, label);
@@ -149,9 +152,7 @@ function openDocumentTypeDialog(mode) {
   const selectedType = mode === "change" ? projectState.documentType : "invoice";
   const selectedOption = dom.newProjectDocumentTypes.find((input) => input.value === selectedType);
   if (selectedOption) selectedOption.checked = true;
-  dom.documentTypeDialogTitle.textContent = mode === "change" ? "Dokumenttyp ändern" : "Neues Projekt";
-  dom.documentTypeDialogSubtitle.textContent = mode === "change" ? `Aktuell: ${projectState.documentType}` : "Dokumenttyp wählen";
-  dom.documentTypeDialogConfirm.textContent = mode === "change" ? "Ändern" : "Erstellen";
+  updateDocumentTypeDialogText();
   dom.newProjectDialog.showModal();
 }
 function createNewProject(documentType) {
@@ -161,13 +162,13 @@ function createNewProject(documentType) {
   render();
   centerCamera();
   scheduleAutosave();
-  toast("Neues Projekt erstellt.", "success");
+  toast(t("toast.newProject", "Neues Projekt erstellt."), "success");
 }
 function changeProjectDocumentType(documentType) {
   setProjectDocumentType(documentType);
   render();
   scheduleAutosave();
-  toast("Dokumenttyp geändert.", "success");
+  toast(t("toast.documentTypeChanged", "Dokumenttyp geändert."), "success");
 }
 function openFirstRunDialog() {
   const settings = getSettings();
@@ -191,29 +192,48 @@ function offerAutosaveRecovery() {
   if (hasAutosave() && !dom.autosaveRecoveryDialog.open) dom.autosaveRecoveryDialog.showModal();
 }
 function recoverAutosave() {
-  if (!restoreAutosave()) { toast("Autosave konnte nicht wiederhergestellt werden.", "error"); return; }
+  if (!restoreAutosave()) { toast(t("toast.autosaveRestoreFailed", "Autosave konnte nicht wiederhergestellt werden."), "error"); return; }
   clear();
   render();
   centerCamera();
-  toast("Autosave wiederhergestellt.", "success");
+  toast(t("toast.projectRestored", "Autosave wiederhergestellt."), "success");
 }
 function fieldMatchesSearch(field, query) {
   if (!query) return true;
-  return [...getFieldSearchTerms(field, projectState.documentType), ...(field.search || [])].some((term) => String(term).toLowerCase().includes(query));
+  const terms = field.packId ? getLocalizedPackField(field, projectState.documentType).search : getFieldSearchTerms(field, projectState.documentType);
+  return [...terms, ...(field.search || [])].some((term) => String(term).toLowerCase().includes(query));
 }
 function renderFieldCategory(category, categoryFields) {
   const section = document.createElement("section");
   section.className = "field-category";
   const heading = document.createElement("div");
   heading.className = "field-category-title";
-  heading.textContent = category;
+  const categoryKeys = {
+    mycompany: "fieldCategory.mycompany",
+    company: "fieldCategory.company",
+    user: "fieldCategory.user",
+    object: "fieldCategory.object",
+    "common object": "fieldCategory.commonObject",
+    common: "fieldCategory.common",
+    lines: "fieldCategory.lines",
+    line: "fieldCategory.line",
+    system: "fieldCategory.system",
+    invoice: "fieldCategory.invoice",
+    proposal: "fieldCategory.proposal",
+    order: "fieldCategory.order",
+    shipment: "fieldCategory.shipment",
+    payment: "fieldCategory.payment",
+    custom: "fieldCategory.custom"
+  };
+  const categoryKey = categoryKeys[category];
+  heading.textContent = category === "industry" ? t("sidebar.industryFields", "Branchenfelder") : category === "EMPFOHLEN" ? t("sidebar.recommended", "EMPFOHLEN") : categoryKey ? t(categoryKey, category) : category;
   section.append(heading);
   categoryFields.forEach((field) => {
     const item = document.createElement("button");
     item.type = "button";
     item.className = `field-library-item${isRecommendedForDocumentType(field, projectState.documentType) ? " recommended" : ""}`;
     item.dataset.fieldId = field.id;
-    const displayLabel = getFieldDisplayLabel(field, projectState.documentType);
+    const displayLabel = field.packId ? getLocalizedPackField(field, projectState.documentType).label : getFieldDisplayLabel(field, projectState.documentType);
     item.innerHTML = `<span class="field-recommended" aria-hidden="true">${isRecommendedForDocumentType(field, projectState.documentType) ? "★" : ""}</span><span><strong>${escapeHtml(displayLabel)}</strong><small>${escapeHtml(field.id)}</small></span>`;
     item.addEventListener("click", () => startCorePlacement(field.id, displayLabel));
     section.append(item);
@@ -237,7 +257,7 @@ function renderFieldLibrary() {
   if (!fields.length && !recommendedFields.length) {
     const empty = document.createElement("div");
     empty.className = "field-library-empty";
-    empty.textContent = "Keine Felder gefunden.";
+    empty.textContent = t("empty.noFields", "Keine Felder gefunden.");
     dom.fieldLibrary.append(empty);
     return;
   }
@@ -249,18 +269,17 @@ function renderFieldLibrary() {
 function renderFieldPackSelector() {
   const industryActive = fieldLibraryScope === "industry";
   dom.fieldLibraryIndustryControl.hidden = !industryActive;
-  if (!industryActive) return;
   dom.fieldLibraryIndustry.replaceChildren();
   fieldPacks.forEach((pack) => {
     const option = document.createElement("option");
     option.value = pack.id;
-    option.textContent = pack.name;
+    option.textContent = getLocalizedPackName(pack);
     option.selected = pack.id === activeFieldPackId;
     dom.fieldLibraryIndustry.append(option);
   });
   dom.fieldLibraryIndustry.disabled = fieldPacks.length === 0;
 }
-function renderElementList() { dom.count.textContent = projectState.elements.length; dom.elementList.replaceChildren(); projectState.elements.forEach((element) => { const item = document.createElement("div"); item.className = `element-item${projectState.selection.uids.includes(element.uid) ? " selected" : ""}${projectState.selection.anchorUid === element.uid ? " anchor" : ""}`; item.innerHTML = `<strong>${escapeHtml(element.name)}</strong><small>${escapeHtml(element.id)}${element.type === "table" ? " · table" : ""}</small>`; item.addEventListener("click", (event) => select(element.uid, event, event.shiftKey)); dom.elementList.append(item); }); }
+function renderElementList() { dom.count.textContent = projectState.elements.length; dom.elementList.replaceChildren(); projectState.elements.forEach((element) => { const item = document.createElement("div"); item.className = `element-item${projectState.selection.uids.includes(element.uid) ? " selected" : ""}${projectState.selection.anchorUid === element.uid ? " anchor" : ""}`; const name = element.id === "invoice_lines" ? t("field.invoice_lines", element.name) : element.name; item.innerHTML = `<strong>${escapeHtml(name)}</strong><small>${escapeHtml(element.id)}${element.type === "table" ? ` · ${escapeHtml(t("sidebar.table", "table"))}` : ""}</small>`; item.addEventListener("click", (event) => select(element.uid, event, event.shiftKey)); dom.elementList.append(item); }); }
 function renderTemplateTabs() {
   const multi = projectState.activeTemplate !== "single";
   dom.templateModes.forEach((button) => button.classList.toggle("active", button.dataset.templateMode === (multi ? "multi" : "single")));
@@ -271,8 +290,16 @@ function renderTemplateTabs() {
     button.querySelector(".template-status").textContent = templateHasContent(type) ? "●" : "○";
   });
 }
-function updateMultiPanel() { const multiple = projectState.selection.uids.length > 1; dom.multi.hidden = !multiple; if (multiple) { $("multi-count").textContent = `${projectState.selection.uids.length} Elemente ausgewählt`; $("multi-anchor").textContent = getSelectedElement()?.name || ""; } }
-function render() { renderCanvas(dom, render, select, () => { dom.dragBefore = capture(projectState); }, () => { if (dom.dragBefore) record(dom.dragBefore, projectState); updateHistoryButtons(); scheduleAutosave(); }); const selected = getSelectedElement(); if (projectState.selection.uids.length === 1 && selected?.type === "table") { dom.form.hidden = true; dom.tableForm.hidden = false; dom.empty.hidden = true; dom.label.textContent = "AUSGEWÄHLT"; updateTablePanel(selected); } else if (projectState.selection.uids.length === 1) { dom.tableForm.hidden = true; updatePropertiesPanel(dom, render); } else { dom.form.hidden = true; dom.tableForm.hidden = true; dom.empty.hidden = Boolean(projectState.selection.uids.length); dom.label.textContent = projectState.selection.uids.length ? "MEHRFACH AUSGEWÄHLT" : "NICHTS AUSGEWÄHLT"; } updateMultiPanel(); renderFieldPackSelector(); renderFieldLibrary(); renderElementList(); renderTemplateTabs(); dom.currentDocumentType.textContent = projectState.documentType; dom.zoomLabel.textContent = `${TEMPLATE_LABELS[projectState.activeTemplate]} · ${Math.round(projectState.editor.zoom * 100)} %`; dom.zoomSelect.value = String(Math.round(projectState.editor.zoom * 100)); dom.gridToggle.checked = projectState.editor.gridVisible; dom.gridSize.value = String(projectState.editor.gridMm); dom.snapToggle.checked = projectState.editor.snapToGrid; updateHistoryButtons(); }
+function updateMultiPanel() { const multiple = projectState.selection.uids.length > 1; dom.multi.hidden = !multiple; if (multiple) { $("multi-count").textContent = formatText("status.elementsSelected", "{count} Elemente ausgewählt", { count: projectState.selection.uids.length }); $("multi-anchor").textContent = getSelectedElement()?.name || ""; } }
+function render() { renderCanvas(dom, render, select, () => { dom.dragBefore = capture(projectState); }, () => { if (dom.dragBefore) record(dom.dragBefore, projectState); updateHistoryButtons(); scheduleAutosave(); }); const selected = getSelectedElement(); if (projectState.selection.uids.length === 1 && selected?.type === "table") { dom.form.hidden = true; dom.tableForm.hidden = false; dom.empty.hidden = true; dom.label.textContent = t("status.selected", "AUSGEWÄHLT"); updateTablePanel(selected); } else if (projectState.selection.uids.length === 1) { dom.tableForm.hidden = true; updatePropertiesPanel(dom, render); } else { dom.form.hidden = true; dom.tableForm.hidden = true; dom.empty.hidden = Boolean(projectState.selection.uids.length); dom.label.textContent = projectState.selection.uids.length ? t("status.multipleSelected", "MEHRFACH AUSGEWÄHLT") : t("status.nothingSelected", "NICHTS AUSGEWÄHLT"); } updateMultiPanel(); renderFieldPackSelector(); renderFieldLibrary(); renderElementList(); renderTemplateTabs(); dom.currentDocumentType.textContent = projectState.documentType; dom.zoomLabel.textContent = `${TEMPLATE_LABELS[projectState.activeTemplate]} · ${Math.round(projectState.editor.zoom * 100)} %`; dom.zoomSelect.value = String(Math.round(projectState.editor.zoom * 100)); dom.gridToggle.checked = projectState.editor.gridVisible; dom.gridSize.value = String(projectState.editor.gridMm); dom.snapToggle.checked = projectState.editor.snapToGrid; updateHistoryButtons(); }
+function updateLocalizedZoomLabel() {
+  dom.zoomLabel.textContent = `${t(`template.${projectState.activeTemplate}`, TEMPLATE_LABELS[projectState.activeTemplate])} · ${Math.round(projectState.editor.zoom * 100)} %`;
+}
+const renderWithoutLocalizedStatus = render;
+render = function renderWithLocalizedStatus() {
+  renderWithoutLocalizedStatus();
+  updateLocalizedZoomLabel();
+};
 function updateHistoryButtons() { dom.undo.disabled = !canUndo(); dom.redo.disabled = !canRedo(); }
 function setZoom(zoom) { projectState.editor.zoom = Math.max(.1, Math.min(6, zoom)); saveActiveTemplateView(); render(); }
 function centerCamera() { projectState.editor.camera = { panX: 0, panY: 0 }; saveActiveTemplateView(); render(); const v = dom.viewport.getBoundingClientRect(); const p = dom.page.getBoundingClientRect(); dom.viewport.scrollLeft += p.left + p.width / 2 - (v.left + v.width / 2); dom.viewport.scrollTop += p.top + p.height / 2 - (v.top + v.height / 2); }
@@ -280,8 +307,8 @@ function fitToWindow() { projectState.editor.zoom = Math.max(.1, Math.min(6, Mat
 function align(type) { const anchor = getSelectedElement(); if (!anchor) return; edit(() => selectedElements().forEach((element) => { if (element.uid === anchor.uid) return; if (type === "left") element.x = anchor.x; if (type === "right") element.x = anchor.x + anchor.width - element.width; if (type === "centerX") element.x = anchor.x + (anchor.width - element.width) / 2; if (type === "top") element.y = anchor.y; if (type === "bottom") element.y = anchor.y + anchor.height - element.height; if (type === "centerY") element.y = anchor.y + (anchor.height - element.height) / 2; if (type === "width" || type === "size") element.width = anchor.width; if (type === "height" || type === "size") element.height = anchor.height; })); }
 function distribute(axis) { const selected = selectedElements(); if (selected.length < 3) return; const ordered = [...selected].sort((a, b) => a[axis] - b[axis]); const end = axis === "x" ? ordered.at(-1).x + ordered.at(-1).width : ordered.at(-1).y + ordered.at(-1).height; const total = ordered.reduce((sum, element) => sum + (axis === "x" ? element.width : element.height), 0); const gap = (end - (axis === "x" ? ordered[0].x : ordered[0].y) - total) / (ordered.length - 1); edit(() => { let cursor = axis === "x" ? ordered[0].x : ordered[0].y; ordered.forEach((element, index) => { if (index > 0) { cursor += (axis === "x" ? ordered[index - 1].width : ordered[index - 1].height) + gap; element[axis] = cursor; } }); }); }
 function applySpacing(axis) { const anchor = getSelectedElement(); const gap = Math.max(0, Number($("spacing-value").value) || 0); if (!anchor || selectedElements().length < 2) return; const coordinate = axis === "x" ? "x" : "y"; const size = axis === "x" ? "width" : "height"; const others = selectedElements().filter((element) => element.uid !== anchor.uid); edit(() => { let cursor = anchor[coordinate] + anchor[size]; others.filter((element) => element[coordinate] >= anchor[coordinate]).sort((a, b) => a[coordinate] - b[coordinate]).forEach((element) => { element[coordinate] = cursor + gap; cursor = element[coordinate] + element[size]; }); }); }
-function copySelected() { const selected = selectedElements(); if (!selected.length) return false; projectState.clipboard = structuredClone(selected); clipboardTemplate = projectState.activeTemplate; toast(`${selected.length} Element${selected.length === 1 ? "" : "e"} kopiert.`, "success"); return true; }
-function paste() { const source = projectState.clipboard || []; if (!source.length) return; const before = capture(projectState); const used = new Set(projectState.elements.map((element) => element.id)); const crossTemplatePaste = clipboardTemplate !== null && clipboardTemplate !== projectState.activeTemplate; const added = []; source.forEach((original) => { if (original.elementClass === "core" && original.id === "invoice_lines" && used.has(original.id)) { toast("Positionstabelle bereits vorhanden.", "warning"); return; } const element = structuredClone(original); element.uid = `el_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; element.x = Math.min(210 - element.width, element.x + 2); element.y = Math.min(297 - element.height, element.y + 2); if (element.elementClass !== "core" && !crossTemplatePaste) { const base = `${element.id}_copy`; element.id = base; let suffix = 2; while (used.has(element.id)) element.id = `${base}_${suffix++}`; } used.add(element.id); projectState.elements.push(element); added.push(element.uid); }); if (added.length) { setSelection(added); record(before, projectState); scheduleAutosave(); toast(`${added.length} Element${added.length === 1 ? "" : "e"} eingefügt.`, "success"); render(); } }
+function copySelected() { const selected = selectedElements(); if (!selected.length) return false; projectState.clipboard = structuredClone(selected); clipboardTemplate = projectState.activeTemplate; toast(formatText("toast.copiedCount", "{count} Element(e) kopiert.", { count: selected.length }), "success"); return true; }
+function paste() { const source = projectState.clipboard || []; if (!source.length) return; const before = capture(projectState); const used = new Set(projectState.elements.map((element) => element.id)); const crossTemplatePaste = clipboardTemplate !== null && clipboardTemplate !== projectState.activeTemplate; const added = []; source.forEach((original) => { if (original.elementClass === "core" && original.id === "invoice_lines" && used.has(original.id)) { toast(t("toast.positionTableExists", "Positionstabelle bereits vorhanden."), "warning"); return; } const element = structuredClone(original); element.uid = `el_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; element.x = Math.min(210 - element.width, element.x + 2); element.y = Math.min(297 - element.height, element.y + 2); if (element.elementClass !== "core" && !crossTemplatePaste) { const base = `${element.id}_copy`; element.id = base; let suffix = 2; while (used.has(element.id)) element.id = `${base}_${suffix++}`; } used.add(element.id); projectState.elements.push(element); added.push(element.uid); }); if (added.length) { setSelection(added); record(before, projectState); scheduleAutosave(); toast(formatText("toast.pastedCount", "{count} Element(e) eingefügt.", { count: added.length }), "success"); render(); } }
 function updateTablePanel(table) {
   const tableFields = {
     name: "table-name",
@@ -297,7 +324,7 @@ function updateTablePanel(table) {
     lineHeight: "table-line-height",
     textOffsetYmm: "table-offset"
   };
-  Object.entries(tableFields).forEach(([key, id]) => { $(id).value = table[key]; });
+  Object.entries(tableFields).forEach(([key, id]) => { $(id).value = key === "name" ? t("field.invoice_lines", table[key]) : table[key]; });
   $("table-row-height").disabled = table.rowMode !== "fixed";
   $("table-min-row-height").disabled = table.rowMode !== "dynamic";
   $("table-max-rows").value = validateTable(table).maxRows;
@@ -308,27 +335,27 @@ function updateTablePanel(table) {
   const result = validateTable(table);
   const layout = table.showTestData ? layoutTableRows(table, TEST_ROWS) : null;
   const messages = [
-    ...result.errors.map((message) => ({ type: "error", text: `Fehler: ${message}` })),
-    ...result.warnings.map((message) => ({ type: "warning", text: `Warnung: ${message}` }))
+    ...result.errors.map((message) => ({ type: "error", text: `${t("table.error", "Fehler")}: ${message}` })),
+    ...result.warnings.map((message) => ({ type: "warning", text: `${t("table.warning", "Warnung")}: ${message}` }))
   ];
   if (layout) {
-    layout.oversizedRows.forEach((row) => messages.push({ type: "warning", text: `Warnung: Position ${row.index + 1} ist höher als der verfügbare Tabellenbereich.` }));
-    if (layout.hasHorizontalOverflow) messages.push({ type: "warning", text: "Warnung: Mindestens eine Testzelle überschreitet ihre Spaltenbreite." });
-    if (layout.multiSlotRows.length) messages.push({ type: "warning", text: "Warnung: Mehrzeilige Position belegt mehrere Rasterzeilen. Vorhandene horizontale Hintergrundlinien können den Textbereich durchqueren." });
+    layout.oversizedRows.forEach((row) => messages.push({ type: "warning", text: `${t("table.warning", "Warnung")}: ${formatText("table.oversizedRow", "Position {position} is higher than the available table area.", { position: row.index + 1 })}` }));
+    if (layout.hasHorizontalOverflow) messages.push({ type: "warning", text: `${t("table.warning", "Warnung")}: ${t("table.horizontalOverflow", "At least one test cell exceeds its column width.")}` });
+    if (layout.multiSlotRows.length) messages.push({ type: "warning", text: `${t("table.warning", "Warnung")}: ${t("table.multiSlot", "A multiline position occupies multiple grid rows. Existing horizontal background lines may cross the text area.")}` });
   }
   $("table-validation").innerHTML = messages.map((message) => `<div class="${message.type}">${escapeHtml(message.text)}</div>`).join("");
-  $("table-layout-preview").textContent = layout ? `Positionen gesamt: ${layout.rows.length} · Passen: ${layout.fittedRows.length} · Überlauf: ${layout.overflowRows.length} · Verwendete Höhe: ${layout.usedHeightMm.toFixed(1)} mm · Rest: ${layout.remainingHeightMm.toFixed(1)} mm` : "";
+  $("table-layout-preview").textContent = layout ? formatText("table.preview", "Total positions: {total} · Fit: {fit} · Overflow: {overflow} · Used height: {used} mm · Remaining: {remaining} mm", { total: layout.rows.length, fit: layout.fittedRows.length, overflow: layout.overflowRows.length, used: layout.usedHeightMm.toFixed(1), remaining: layout.remainingHeightMm.toFixed(1) }) : "";
 
   const columns = $("table-columns");
   columns.replaceChildren();
   table.columns.forEach((column, index) => {
     const row = document.createElement("div");
     row.className = "column-property";
-    row.innerHTML = `<strong>${escapeHtml(column.name)}</strong><small>${escapeHtml(column.id)}</small><input class="column-width" type="number" min="3" step="0.1" value="${column.widthMm}"><select class="column-align"><option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option></select><label class="column-wrap"><input type="checkbox"> Umbruch</label><input class="column-font-size" type="number" min="1" step="0.5" value="${column.fontSizePt}"><select class="column-font-weight"><option value="normal">Normal</option><option value="bold">Fett</option></select>`;
+    row.innerHTML = `<strong>${escapeHtml(localizedColumnName(column))}</strong><small>${escapeHtml(column.id)}</small><input class="column-width" type="number" min="3" step="0.1" value="${column.widthMm}"><select class="column-align"><option value="left">${escapeHtml(t("table.column.alignLeft", "Links"))}</option><option value="center">${escapeHtml(t("table.column.alignCenter", "Zentriert"))}</option><option value="right">${escapeHtml(t("table.column.alignRight", "Rechts"))}</option></select><label class="column-wrap"><input type="checkbox"> ${escapeHtml(t("table.column.wrap", "Umbruch"))}</label><input class="column-font-size" type="number" min="1" step="0.5" value="${column.fontSizePt}"><select class="column-font-weight"><option value="normal">${escapeHtml(t("table.column.normal", "Normal"))}</option><option value="bold">${escapeHtml(t("table.column.bold", "Fett"))}</option></select>`;
     row.querySelector(".column-align").value = column.align;
     row.querySelector(".column-wrap input").checked = Boolean(column.wrap);
     row.querySelector(".column-font-weight").value = column.fontWeight;
-    row.querySelector(".column-width").addEventListener("change", (event) => { const before = capture(projectState); if (!resizeColumn(table, index, Number(event.target.value))) { toast("Spaltenbreite kann nicht angewendet werden.", "warning"); return; } record(before, projectState); render(); scheduleAutosave(); });
+    row.querySelector(".column-width").addEventListener("change", (event) => { const before = capture(projectState); if (!resizeColumn(table, index, Number(event.target.value))) { toast(t("toast.columnWidth", "Spaltenbreite kann nicht angewendet werden."), "warning"); return; } record(before, projectState); render(); scheduleAutosave(); });
     row.querySelector(".column-align").addEventListener("change", (event) => { edit(() => { column.align = event.target.value; }); });
     row.querySelector(".column-wrap input").addEventListener("change", (event) => { edit(() => { column.wrap = event.target.checked; }); });
     row.querySelector(".column-font-size").addEventListener("change", (event) => { edit(() => { column.fontSizePt = Math.max(1, Number(event.target.value) || 9); }); });
@@ -337,10 +364,79 @@ function updateTablePanel(table) {
   });
 }
 
-$("add-text-button").addEventListener("click", () => { beginPlacement(); render(); }); document.querySelectorAll("[data-core-id]").forEach((button) => button.addEventListener("click", () => startCorePlacement(button.dataset.coreId))); $("delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("table-delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("export-button").addEventListener("click", () => { exportProject(); toast("Projekt exportiert.", "success"); }); dom.newProjectButton.addEventListener("click", () => openDocumentTypeDialog("new")); dom.changeDocumentTypeButton.addEventListener("click", () => openDocumentTypeDialog("change")); dom.newProjectForm.addEventListener("submit", (event) => { if (event.submitter?.value !== "confirm") return; event.preventDefault(); dom.newProjectDialog.close(); if (documentTypeDialogMode === "change") changeProjectDocumentType(selectedNewProjectDocumentType()); else createNewProject(selectedNewProjectDocumentType()); }); $("import-button").addEventListener("click", () => dom.projectInput.click()); $("fit-button").addEventListener("click", fitToWindow); dom.undo.addEventListener("click", () => { if (undo(projectState, restore)) updateHistoryButtons(); }); dom.redo.addEventListener("click", () => { if (redo(projectState, restore)) updateHistoryButtons(); });
+function markUiTranslations() {
+  const ids = {
+    "change-document-type-button": "toolbar.changeDocumentType", "fit-button": "toolbar.fit", "background-button": "toolbar.background",
+    "new-project-button": "toolbar.newProject", "import-button": "toolbar.import", "export-button": "toolbar.export",
+    "delete-button": "sidebar.deleteElement", "table-delete-button": "sidebar.deleteElement",
+    "document-type-dialog-title": "dialog.newProject", "document-type-dialog-subtitle": "dialog.chooseDocumentType", "document-type-dialog-confirm": "dialog.create"
+  };
+  Object.entries(ids).forEach(([id, key]) => { const element = $(id); if (element) element.dataset.i18n = key; });
+  const set = (selector, key) => { const element = document.querySelector(selector); if (element) element.dataset.i18n = key; };
+  const setAll = (selector, key) => document.querySelectorAll(selector).forEach((element) => { element.dataset.i18n = key; });
+  const setTitle = (selector, key) => { const element = document.querySelector(selector); if (element) element.dataset.i18nTitle = key; };
+  set(".toolbar-group > label[for=zoom-select]", "toolbar.zoom");
+  set(".document-type-indicator span[data-i18n]", "toolbar.documentType");
+  if ($("grid-toggle")?.closest("label")) $("grid-toggle").closest("label").dataset.i18n = "toolbar.grid";
+  set(".toolbar-actions > label:nth-child(2)", "toolbar.gridSize");
+  if ($("snap-toggle")?.closest("label")) $("snap-toggle").closest("label").dataset.i18n = "toolbar.snap";
+  set(".template-mode [data-template-mode=single]", "template.single"); set(".template-mode [data-template-mode=multi]", "template.multi");
+  set(".template-subtabs [data-template=first]", "template.first"); set(".template-subtabs [data-template=middle]", "template.middle"); set(".template-subtabs [data-template=last]", "template.last");
+  set(".element-library-pane .panel-heading span:first-child", "sidebar.elementsLibrary"); set(".field-library-section .panel-heading span:first-child", "sidebar.fieldLibrary"); set(".element-section .panel-heading span:first-child", "sidebar.elements"); set(".properties-panel > .panel-heading span:first-child", "sidebar.properties");
+  set("#add-text-button strong", "sidebar.textField"); set("#add-text-button small", "sidebar.freeText");
+  const propertyTitles = [...document.querySelectorAll("#properties-form .field-group .field-title")];
+  if (propertyTitles[0]) propertyTitles[0].dataset.i18n = "sidebar.fontStyle";
+  if (propertyTitles[1]) propertyTitles[1].dataset.i18n = "sidebar.alignment";
+  const tableHeadings = [...document.querySelectorAll("#table-properties .panel-heading span")];
+  ["sidebar.general", "sidebar.rows", "sidebar.columns"].forEach((key, index) => { if (tableHeadings[index]) tableHeadings[index].dataset.i18n = key; });
+  set("#table-vertical-align option[value=top]", "table.verticalTop"); set("#table-vertical-align option[value=middle]", "table.verticalMiddle"); set("#table-vertical-align option[value=bottom]", "table.verticalBottom");
+  set("#property-multiline option[value=false]", "sidebar.no"); set("#property-multiline option[value=true]", "sidebar.yes");
+  set(".field-library-scope label:nth-child(1)", "sidebar.forDocumentType"); set(".field-library-scope label:nth-child(2)", "sidebar.allFields"); set(".field-library-scope label:nth-child(3)", "sidebar.industryFields"); set(".field-library-industry", "sidebar.industry"); set(".field-library-search", "sidebar.search");
+  const labelKeys = { "property-name": "sidebar.name", "property-id": "sidebar.id", "property-x": "sidebar.x", "property-y": "sidebar.y", "property-width": "sidebar.width", "property-height": "sidebar.height", "property-font-family": "sidebar.font", "property-font-size": "sidebar.fontSize", "property-color": "sidebar.textColor", "property-multiline": "sidebar.multiline", "property-test-value": "sidebar.testValue", "table-name": "sidebar.name", "table-id": "sidebar.id", "table-x": "sidebar.x", "table-y": "sidebar.y", "table-width": "sidebar.width", "table-height": "sidebar.height", "table-row-height": "sidebar.rowHeight", "table-min-row-height": "sidebar.minHeight", "table-max-rows": "sidebar.maxRows", "table-padding-horizontal": "sidebar.paddingX", "table-padding-vertical": "sidebar.paddingY", "table-line-height": "sidebar.lineHeight", "table-offset": "sidebar.textOffset", "table-vertical-align": "sidebar.verticalAlignment", "table-test-data": "sidebar.showTestData" };
+  Object.entries(labelKeys).forEach(([id, key]) => { const element = $(id); if (element?.closest("label")) element.closest("label").dataset.i18n = key; });
+  if ($("setup-grid-mm")?.closest("label")) $("setup-grid-mm").closest("label").dataset.i18n = "sidebar.gridSize";
+  const radioLabels = { 'input[name="font-weight"][value="normal"]': "sidebar.normal", 'input[name="font-weight"][value="bold"]': "sidebar.bold", 'input[name="align"][value="left"]': "sidebar.left", 'input[name="align"][value="center"]': "sidebar.center", 'input[name="align"][value="right"]': "sidebar.right", 'input[name="table-row-mode"][value="fixed"]': "sidebar.fixedGrid", 'input[name="table-row-mode"][value="dynamic"]': "sidebar.dynamic" };
+  Object.entries(radioLabels).forEach(([selector, key]) => { const element = document.querySelector(selector); if (element?.closest("label")) element.closest("label").dataset.i18n = key; });
+  set("#empty-properties", "sidebar.selectElement"); set("#delete-button", "sidebar.deleteElement"); set("#table-delete-button", "sidebar.deleteElement");
+  set("#multi-properties > strong", "sidebar.multipleSelection"); set("#multi-properties > span:nth-of-type(2)", "sidebar.reference");
+  const multiTitles = [...document.querySelectorAll("#multi-properties > .field-title")];
+  ["sidebar.alignment", "sidebar.size", "sidebar.distribute", "sidebar.spacing"].forEach((key, index) => { if (multiTitles[index]) multiTitles[index].dataset.i18n = key; });
+  set("[data-spacing-apply=horizontal]", "sidebar.applyHorizontal"); set("[data-spacing-apply=vertical]", "sidebar.applyVertical");
+  set("#first-run-dialog .setup-options label:nth-child(2)", "dialog.snapToGrid"); set("#first-run-dialog .setup-options label:nth-child(3)", "dialog.gridVisible"); set("#first-run-dialog .setup-options label:nth-child(4)", "dialog.autosaveEnabled"); set("#first-run-dialog .setup-options label:nth-child(5)", "dialog.recoveryEnabled");
+  set("#first-run-dialog .modal-heading strong", "dialog.setup"); set("#first-run-dialog .modal-heading span", "dialog.globalSettings"); set("#autosave-recovery-dialog .modal-heading strong", "dialog.unsaved"); set("#autosave-recovery-dialog .modal-heading span", "dialog.autosaveFound");
+  set("#new-project-form button[value=cancel]", "dialog.cancel"); set("#new-project-form button[value=confirm]", "dialog.create"); set("#first-run-form button[value=cancel]", "dialog.cancel"); set("#first-run-form button[value=confirm]", "dialog.save"); set("#autosave-recovery-form button[value=discard]", "dialog.discard"); set("#autosave-recovery-form button[value=restore]", "dialog.restore");
+  document.querySelectorAll("input[name=new-project-document-type]").forEach((input) => { const key = `dialog.${input.value}`; input.closest("label")?.querySelector("strong") && (input.closest("label").querySelector("strong").dataset.i18n = key); });
+  if (dom.languageSelect) dom.languageSelect.dataset.i18nAriaLabel = "language.label";
+  if (dom.fieldLibrarySearch) dom.fieldLibrarySearch.dataset.i18nPlaceholder = "sidebar.searchPlaceholder";
+  const ariaLabels = { ".template-tabs": "aria.pageTemplates", ".template-mode": "aria.pageMode", ".field-library-scope": "aria.fieldLibraryScope", ".document-type-options": "aria.documentType", "[data-sidebar-splitter='element-library|field-library']": "aria.resizeElementLibrary", "[data-sidebar-splitter='field-library|elements']": "aria.resizeFieldLibrary", "#page": "aria.page" };
+  Object.entries(ariaLabels).forEach(([selector, key]) => { const element = document.querySelector(selector); if (element) element.dataset.i18nAriaLabel = key; });
+  const titles = { "#undo-button": "tooltip.undo", "#redo-button": "tooltip.redo", '[data-align="left"]': "tooltip.alignLeft", '[data-align="centerX"]': "tooltip.alignCenterX", '[data-align="right"]': "tooltip.alignRight", '[data-align="top"]': "tooltip.alignTop", '[data-align="centerY"]': "tooltip.alignCenterY", '[data-align="bottom"]': "tooltip.alignBottom", '[data-align="width"]': "tooltip.sameWidth", '[data-align="height"]': "tooltip.sameHeight", '[data-align="size"]': "tooltip.sameSize", '[data-distribute="horizontal"]': "tooltip.distributeHorizontal", '[data-distribute="vertical"]': "tooltip.distributeVertical", '[data-spacing-step="-0.1"]': "tooltip.reduceSpacing", '[data-spacing-step="0.1"]': "tooltip.increaseSpacing", '[data-spacing-apply="horizontal"]': "tooltip.applyHorizontalSpacing", '[data-spacing-apply="vertical"]': "tooltip.applyVerticalSpacing" };
+  Object.entries(titles).forEach(([selector, key]) => setTitle(selector, key));
+}
+
+function updateDocumentTypeDialogText() {
+  const change = documentTypeDialogMode === "change";
+  dom.documentTypeDialogTitle.textContent = t(change ? "dialog.changeDocumentType" : "dialog.newProject", change ? "Dokumenttyp \u00e4ndern" : "Neues Projekt");
+  dom.documentTypeDialogSubtitle.textContent = change ? `${t("dialog.currentType", "Aktuell:")} ${projectState.documentType}` : t("dialog.chooseDocumentType", "Dokumenttyp w\u00e4hlen");
+  dom.documentTypeDialogConfirm.textContent = t(change ? "dialog.change" : "dialog.create", change ? "\u00c4ndern" : "Erstellen");
+}
+
+function renderLanguageSelector() {
+  const select = dom.languageSelect;
+  if (!select) return;
+  select.replaceChildren();
+  getLanguages().forEach((language) => { const option = document.createElement("option"); option.value = language.code; option.textContent = language.name; option.selected = language.code === getLanguage(); select.append(option); });
+}
+
+onLanguageChange(() => { renderLanguageSelector(); render(); markUiTranslations(); applyTranslations(); updateDocumentTypeDialogText(); });
+dom.languageSelect?.addEventListener("change", (event) => setLanguage(event.target.value));
+dom.newProjectButton.addEventListener("click", () => setTimeout(() => { markUiTranslations(); applyTranslations(); updateDocumentTypeDialogText(); }, 0), true);
+dom.changeDocumentTypeButton.addEventListener("click", () => setTimeout(() => { markUiTranslations(); applyTranslations(); updateDocumentTypeDialogText(); }, 0), true);
+
+$("add-text-button").addEventListener("click", () => { beginPlacement(); render(); }); document.querySelectorAll("[data-core-id]").forEach((button) => button.addEventListener("click", () => startCorePlacement(button.dataset.coreId))); $("delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("table-delete-button").addEventListener("click", () => edit(removeSelectedElement)); $("export-button").addEventListener("click", () => { exportProject(); toast(t("toast.projectExported", "Projekt exportiert."), "success"); }); dom.newProjectButton.addEventListener("click", () => openDocumentTypeDialog("new")); dom.changeDocumentTypeButton.addEventListener("click", () => openDocumentTypeDialog("change")); dom.newProjectForm.addEventListener("submit", (event) => { if (event.submitter?.value !== "confirm") return; event.preventDefault(); dom.newProjectDialog.close(); if (documentTypeDialogMode === "change") changeProjectDocumentType(selectedNewProjectDocumentType()); else createNewProject(selectedNewProjectDocumentType()); }); $("import-button").addEventListener("click", () => dom.projectInput.click()); $("fit-button").addEventListener("click", fitToWindow); dom.undo.addEventListener("click", () => { if (undo(projectState, restore)) updateHistoryButtons(); }); dom.redo.addEventListener("click", () => { if (redo(projectState, restore)) updateHistoryButtons(); });
 dom.firstRunForm.addEventListener("submit", (event) => { if (event.submitter?.value !== "confirm") return; event.preventDefault(); updateSettings(setupSettingsFromForm()); completeFirstRun(); dom.firstRunDialog.close(); setTimeout(offerAutosaveRecovery, 0); });
 dom.autosaveRecoveryForm.addEventListener("submit", (event) => { const action = event.submitter?.value; if (action === "restore") { event.preventDefault(); dom.autosaveRecoveryDialog.close(); recoverAutosave(); } else if (action === "discard") { event.preventDefault(); discardAutosave(); dom.autosaveRecoveryDialog.close(); } });
-dom.projectInput.addEventListener("change", async () => { if (!dom.projectInput.files[0]) return; try { await importProject(dom.projectInput.files[0]); discardAutosave(); clear(); render(); centerCamera(); scheduleAutosave(); } catch (error) { toast(`Projekt konnte nicht geladen werden: ${error.message}`, "error"); } dom.projectInput.value = ""; }); $("background-button").addEventListener("click", () => dom.backgroundInput.click()); dom.backgroundInput.addEventListener("change", async () => { const file = dom.backgroundInput.files[0]; if (file) { const before = capture(projectState); setBackground(dom, await readFileAsDataUrl(file), file.name); record(before, projectState); updateHistoryButtons(); render(); scheduleAutosave(); } dom.backgroundInput.value = ""; }); dom.zoomSelect.addEventListener("change", () => setZoom(Number(dom.zoomSelect.value) / 100)); dom.gridToggle.addEventListener("change", () => { projectState.editor.gridVisible = dom.gridToggle.checked; render(); scheduleAutosave(); }); dom.gridSize.addEventListener("change", () => { projectState.editor.gridMm = Number(dom.gridSize.value); render(); scheduleAutosave(); }); dom.snapToggle.addEventListener("change", () => { projectState.editor.snapToGrid = dom.snapToggle.checked; render(); scheduleAutosave(); });
+dom.projectInput.addEventListener("change", async () => { if (!dom.projectInput.files[0]) return; try { await importProject(dom.projectInput.files[0]); discardAutosave(); clear(); render(); centerCamera(); scheduleAutosave(); } catch (error) { toast(formatText("toast.projectLoadFailed", "Projekt konnte nicht geladen werden: {error}", { error: error.message }), "error"); } dom.projectInput.value = ""; }); $("background-button").addEventListener("click", () => dom.backgroundInput.click()); dom.backgroundInput.addEventListener("change", async () => { const file = dom.backgroundInput.files[0]; if (file) { const before = capture(projectState); setBackground(dom, await readFileAsDataUrl(file), file.name); record(before, projectState); updateHistoryButtons(); render(); scheduleAutosave(); } dom.backgroundInput.value = ""; }); dom.zoomSelect.addEventListener("change", () => setZoom(Number(dom.zoomSelect.value) / 100)); dom.gridToggle.addEventListener("change", () => { projectState.editor.gridVisible = dom.gridToggle.checked; render(); scheduleAutosave(); }); dom.gridSize.addEventListener("change", () => { projectState.editor.gridMm = Number(dom.gridSize.value); render(); scheduleAutosave(); }); dom.snapToggle.addEventListener("change", () => { projectState.editor.snapToGrid = dom.snapToggle.checked; render(); scheduleAutosave(); });
 dom.fieldLibrarySearch.addEventListener("input", renderFieldLibrary);
 dom.fieldLibraryScope.forEach((input) => input.addEventListener("change", (event) => {
   fieldLibraryScope = event.target.value === "all" ? "all" : event.target.value === "industry" ? "industry" : "document";
@@ -372,3 +468,5 @@ $("table-test-data").addEventListener("change", (event) => { const table = getSe
 ["table-row-height", "table-min-row-height", "table-padding-horizontal", "table-padding-vertical", "table-line-height", "table-offset"].forEach((id) => $(id).addEventListener("change", (event) => { const table = getSelectedElement(); if (!table || table.type !== "table") return; edit(() => { const keys = { "table-row-height": "rowHeightMm", "table-min-row-height": "minRowHeightMm", "table-padding-horizontal": "cellPaddingHorizontalMm", "table-padding-vertical": "cellPaddingVerticalMm", "table-line-height": "lineHeight", "table-offset": "textOffsetYmm" }; table[keys[id]] = Number(event.target.value); }); })); document.querySelectorAll("input[name=table-row-mode]").forEach((input) => input.addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type === "table") edit(() => { table.rowMode = event.target.value; }); })); $("table-vertical-align").addEventListener("change", (event) => { const table = getSelectedElement(); if (table?.type === "table") edit(() => { table.verticalAlign = event.target.value; }); });
 dom.viewport.addEventListener("pointerdown", (event) => { if (event.button !== 1) return; event.preventDefault(); event.stopPropagation(); dom.viewport.classList.add("panning"); const start = { x: event.clientX, y: event.clientY, ...projectState.editor.camera }; try { dom.viewport.setPointerCapture(event.pointerId); } catch { } const move = (moveEvent) => { projectState.editor.camera.panX = start.panX + moveEvent.clientX - start.x; projectState.editor.camera.panY = start.panY + moveEvent.clientY - start.y; saveActiveTemplateView(); render(); }; const stop = () => { dom.viewport.classList.remove("panning"); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", stop); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", stop); }, true); dom.viewport.addEventListener("wheel", (event) => { event.preventDefault(); if (event.ctrlKey) setZoom(projectState.editor.zoom + (event.deltaY > 0 ? -.05 : .05)); else { projectState.editor.camera.panX += event.shiftKey ? event.deltaY : 0; projectState.editor.camera.panY += event.shiftKey ? 0 : event.deltaY; saveActiveTemplateView(); render(); } }, { passive: false });
 document.addEventListener("keydown", (event) => { if (inputFocused() || modalOpen()) return; const modifier = event.ctrlKey || event.metaKey; if (modifier && event.key.toLowerCase() === "a") { event.preventDefault(); setSelection(projectState.elements.map((element) => element.uid)); render(); } else if (modifier && event.key.toLowerCase() === "c") { event.preventDefault(); copySelected(); } else if (modifier && event.key.toLowerCase() === "v") { event.preventDefault(); paste(); } else if (modifier && event.key.toLowerCase() === "x") { event.preventDefault(); if (copySelected()) edit(removeSelectedElement); } else if (modifier && event.key.toLowerCase() === "d") { event.preventDefault(); if (copySelected()) paste(); } else if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey ? redo(projectState, restore) : undo(projectState, restore)) updateHistoryButtons(); } else if (modifier && event.key.toLowerCase() === "y") { event.preventDefault(); if (redo(projectState, restore)) updateHistoryButtons(); } else if (event.key === "Escape") { event.preventDefault(); cancelPlacement(); setSelection([]); render(); } else if (event.key === "Delete") { event.preventDefault(); edit(removeSelectedElement); } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); edit(() => { const step = event.shiftKey ? 1 : .1; moveSelectedElement(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0); }); } }); document.querySelectorAll("[data-align]").forEach((button) => button.addEventListener("click", () => align(button.dataset.align))); document.querySelectorAll("[data-distribute]").forEach((button) => button.addEventListener("click", () => distribute(button.dataset.distribute === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-apply]").forEach((button) => button.addEventListener("click", () => applySpacing(button.dataset.spacingApply === "horizontal" ? "x" : "y"))); document.querySelectorAll("[data-spacing-step]").forEach((button) => button.addEventListener("click", () => { const input = $("spacing-value"); input.value = Math.max(0, (Number(input.value) || 0) + Number(button.dataset.spacingStep)).toFixed(1); })); let propertyBefore = null; bindProperties(dom, () => render(), () => { if (!propertyBefore) propertyBefore = capture(projectState); }, () => { if (propertyBefore) { record(propertyBefore, projectState); propertyBefore = null; updateHistoryButtons(); } }); bindSidebarSplitters(); window.addEventListener("resize", centerCamera); render(); updateHistoryButtons(); centerCamera(); loadFieldPacks().then((packs) => { fieldPacks = packs; if (!activeFieldPackId) activeFieldPackId = packs[0]?.id || ""; renderFieldPackSelector(); renderFieldLibrary(); }); if (isFirstRun()) openFirstRunDialog(); else offerAutosaveRecovery();
+markUiTranslations();
+initializeI18n().then(() => { renderLanguageSelector(); render(); markUiTranslations(); applyTranslations(); updateDocumentTypeDialogText(); });

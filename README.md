@@ -78,6 +78,10 @@ When enabled, autosave stores the current project in local browser storage after
 
 Background image binary data is intentionally not stored by autosave. After recovery, the layout and placed elements remain intact, but the local background image may need to be selected again.
 
+## Translations
+
+Translations live in `data/i18n/`. To add a language, add one translation JSON file and one entry in `data/i18n/index.json`; no JavaScript change is required. English is the canonical fallback for missing translations, with the existing/default text used if an English key is also missing.
+
 ## Background images
 
 Each template can have its own background image. Exported project JSON stores the background filename/reference metadata, not the image binary. Background image binary data is also excluded from autosave; after importing or recovering a project, select the local image again when necessary.
@@ -96,6 +100,7 @@ Then open [http://127.0.0.1:8001/](http://127.0.0.1:8001/) in a modern browser.
 
 - `index.html`, `css/`, and `js/` contain the browser editor.
 - `data/fieldpacks/` contains dynamically loaded industry field packs.
+- `data/i18n/` contains the JSON translation catalog and language files.
 - `README.md` and `README.de.md` contain the public project documentation.
 
 ## Keyboard shortcuts

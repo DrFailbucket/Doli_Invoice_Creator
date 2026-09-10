@@ -6,40 +6,40 @@
     {
       "source": "dolibarr_extrafield",
       "code": "vehiclemodel",
-      "name": "Fahrzeug / Modell",
-      "search": ["Fahrzeug", "Modell", "vehicle", "vehiclemodel"],
+      "labelKey": "vehiclemodel",
+      "searchKeys": ["vehiclemodel"],
       "type": "text",
       "documentTypes": ["invoice"]
     },
     {
       "source": "dolibarr_extrafield",
       "code": "vehicleplate",
-      "name": "Kennzeichen",
-      "search": ["Kennzeichen", "Nummernschild", "plate", "vehicleplate"],
+      "labelKey": "vehicleplate",
+      "searchKeys": ["vehicleplate"],
       "type": "text",
       "documentTypes": ["invoice"]
     },
     {
       "source": "dolibarr_extrafield",
       "code": "vehiclevin",
-      "name": "FIN / VIN",
-      "search": ["FIN", "VIN", "Fahrgestellnummer", "vehiclevin"],
+      "labelKey": "vehiclevin",
+      "searchKeys": ["vehiclevin"],
       "type": "text",
       "documentTypes": ["invoice"]
     },
     {
       "source": "dolibarr_extrafield",
       "code": "vehicleodometer",
-      "name": "Kilometerstand",
-      "search": ["Kilometerstand", "km", "odometer", "vehicleodometer"],
+      "labelKey": "vehicleodometer",
+      "searchKeys": ["vehicleodometer"],
       "type": "text",
       "documentTypes": ["invoice"]
     },
     {
       "source": "dolibarr_extrafield",
       "code": "vehiclefirstregistration",
-      "name": "Erstzulassung",
-      "search": ["Erstzulassung", "EZ", "first registration", "vehiclefirstregistration"],
+      "labelKey": "vehiclefirstregistration",
+      "searchKeys": ["vehiclefirstregistration"],
       "type": "text",
       "documentTypes": ["invoice"]
     }

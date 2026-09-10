@@ -3,6 +3,7 @@ import { mmToPx } from "./coordinates.js";
 import { bindElementPointer } from "./elements.js";
 import { columnXPositions, TEST_ROWS } from "./tables.js";
 import { layoutTableRows } from "./rowLayout.js";
+import { t } from "./i18n.js";
 
 const handles = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
@@ -26,7 +27,7 @@ export function renderCanvas(dom, onChange, onSelect, onHistoryStart, onHistoryE
     elementsLayer.append(node); bindElementPointer(node, page, onChange, onSelect, onHistoryStart, onHistoryEnd);
   });
   dom.ghost.hidden = !projectState.placement.active;
-  if (!dom.ghost.hidden) { dom.ghost.classList.toggle("table-ghost", projectState.placement.coreId === "invoice_lines"); dom.ghost.textContent = projectState.placement.label || (projectState.placement.coreId === "object_ref" ? "Dokumentnummer" : projectState.placement.coreId === "object_date" ? "Dokumentdatum" : projectState.placement.coreId === "invoice_lines" ? "Positionstabelle" : "Beispieltext"); }
+  if (!dom.ghost.hidden) { dom.ghost.classList.toggle("table-ghost", projectState.placement.coreId === "invoice_lines"); dom.ghost.textContent = projectState.placement.label || (projectState.placement.coreId === "object_ref" ? t("canvas.documentNumber", "Dokumentnummer") : projectState.placement.coreId === "object_date" ? t("canvas.documentDate", "Dokumentdatum") : projectState.placement.coreId === "invoice_lines" ? t("canvas.positionTable", "Positionstabelle") : t("canvas.exampleText", "Beispieltext")); }
 }
 
 function renderTable(node, table, pageWidthPx, pageHeightPx, selected) {
@@ -43,7 +44,7 @@ function renderTable(node, table, pageWidthPx, pageHeightPx, selected) {
     columnNode.style.width = `${mmToPx(column.widthMm, pageWidthPx, pageHeightPx, "x")}px`;
     columnNode.style.height = `${mmToPx(5, pageWidthPx, pageHeightPx, "y")}px`;
     columnNode.style.top = `-${mmToPx(5.5, pageWidthPx, pageHeightPx, "y")}px`;
-    columnNode.textContent = column.name;
+    columnNode.textContent = t(`table.column.${column.id}`, column.name);
     columnNode.style.textAlign = column.align;
     columnNode.style.fontFamily = table.fontFamily;
     columnNode.style.fontSize = `${column.fontSizePt * 96 / 72 * projectState.editor.zoom}px`;

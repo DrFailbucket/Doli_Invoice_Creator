@@ -4,7 +4,7 @@ function normalizeField(pack, definition) {
   const id = definition.source === "dolibarr_extrafield" && definition.code
     ? `object_options_${definition.code}`
     : definition.id;
-  const label = definition.label || definition.name;
+  const label = definition.label || definition.name || definition.labelKey || definition.id;
   if (!id || !label) throw new Error(`Felddefinition in Pack ${pack.id} ist unvollständig.`);
   const documentTypes = Array.isArray(definition.documentTypes) ? definition.documentTypes : [];
   if (!documentTypes.length) throw new Error(`Feld ${id} in Pack ${pack.id} hat keine Dokumenttypen.`);
@@ -16,6 +16,9 @@ function normalizeField(pack, definition) {
     source: definition.source || "fieldpack",
     recommended: false,
     search: Object.freeze(Array.isArray(definition.search) ? [...definition.search] : []),
+    labelKey: definition.labelKey || null,
+    searchKeys: Object.freeze(Array.isArray(definition.searchKeys) ? [...definition.searchKeys] : []),
+    sourceCode: definition.code || definition.id || null,
     packId: pack.id,
     type: definition.type || "text"
   });
