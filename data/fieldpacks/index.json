@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "id": "automotive",
+      "name": "Kfz / Werkstatt",
+      "file": "automotive.json"
+    }
+  ]
+}

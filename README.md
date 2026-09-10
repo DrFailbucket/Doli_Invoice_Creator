@@ -20,6 +20,7 @@ Design A4 document layouts visually, place Dolibarr fields, configure an invoice
 - Local background images
 - Dolibarr field library with core fields, custom fields, aliases, and generic extrafield patterns
 - Field search, document-type scope, recommendations, and contextual labels
+- Advanced/general fields including `customercontact`, `vatrate`, `mycompany_taxnumber`, `page_current`, and `page_count`
 - Invoice line table editor with column sizing, alignment, wrapping, and row layout preview
 - Independent single-page and multi-page layout templates: `single`, `first`, `middle`, and `last`
 - Font family, size, weight, text color, alignment, and multiline text
@@ -43,9 +44,33 @@ The Creator defines where content appears: templates, backgrounds, fields, posit
 
 The Creator supports independent single-page and multi-page layouts. Multi-page projects use separate first, middle, and last page templates. The middle template acts as a reusable layout for any number of intermediate pages. Actual runtime pagination is handled by the PDF renderer, which decides whether to use `single` or `first` + `middle` 0..N times + `last` and produces the actual PDF.
 
+Each template supports at most one `invoice_lines` table. Copying elements between templates creates a new internal `uid` while preserving semantic field IDs.
+
 ## Current status
 
-The single-page and multi-page layout workflows, field mapping, invoice line table, JSON import/export, and local recovery workflow are available. Runtime page distribution remains the responsibility of the PDF renderer.
+The Creator and the companion renderer core scope are stable and working for the documented invoice workflow. The Creator provides single-page and multi-page layout editing, field mapping, invoice line tables, JSON import/export, and local recovery. It does not claim support for every possible Dolibarr field, and dynamic row pagination is not supported by the renderer yet.
+
+## Renderer
+
+The companion Dolibarr PDF renderer consumes the exported template. It uses the `single` path when an invoice fits on one page; otherwise it uses `first` + `middle` 0..N times + `last`. It keeps invoice line numbering continuous, resolves supported standard, custom, and extrafield IDs, and supports `page_current` / `page_count`.
+
+The renderer respects Creator field coordinates and styles, uses per-template background images, and currently supports fixed-row pagination. Dynamic row mode is available for Creator layout work but is not supported by the renderer yet.
+
+## Industry Field Packs
+
+Industry field packs are loaded dynamically from `data/fieldpacks/index.json`. The included pack is `Kfz / Werkstatt` and provides `vehiclemodel`, `vehicleplate`, `vehiclevin`, `vehicleodometer`, and `vehiclefirstregistration`. A Dolibarr extrafield with code `vehicleplate` becomes `object_options_vehicleplate`.
+
+To add another profession or industry, add one JSON file and one entry in the index. No JavaScript change is required. A minimal pack contains `version`, `id`, `name`, and `fields`; fields may use a direct semantic `id` or a Dolibarr extrafield definition such as:
+
+```json
+{
+  "source": "dolibarr_extrafield",
+  "code": "vehicleplate",
+  "name": "Kennzeichen",
+  "type": "text",
+  "documentTypes": ["invoice"]
+}
+```
 
 ## Autosave and recovery
 
@@ -55,7 +80,7 @@ Background image binary data is intentionally not stored by autosave. After reco
 
 ## Background images
 
-Background images are loaded from the local computer. Exported project JSON stores the background filename/reference metadata, not the image binary. After importing or recovering a project, select the local image again when necessary.
+Each template can have its own background image. Exported project JSON stores the background filename/reference metadata, not the image binary. Background image binary data is also excluded from autosave; after importing or recovering a project, select the local image again when necessary.
 
 ## Local usage
 
@@ -66,6 +91,12 @@ python -m http.server 8001
 ```
 
 Then open [http://127.0.0.1:8001/](http://127.0.0.1:8001/) in a modern browser.
+
+## Project structure
+
+- `index.html`, `css/`, and `js/` contain the browser editor.
+- `data/fieldpacks/` contains dynamically loaded industry field packs.
+- `README.md` and `README.de.md` contain the public project documentation.
 
 ## Keyboard shortcuts
 

@@ -99,6 +99,7 @@ const FIELD_SEARCH_ALIASES = Object.freeze({
   object_payment_term: Object.freeze(["Zahlungsziel", "Zahlungsbedingung", "Zahlungsbedingungen", "payment term", "payment condition"]),
   object_total_vat: Object.freeze(["MwSt", "Mehrwertsteuer", "USt", "Umsatzsteuer", "VAT", "tax"]),
   mycompany_vatnumber: Object.freeze(["USt-ID", "USt-IdNr", "VAT ID"]),
+  customercontact: Object.freeze(["Kundenansprechpartner"]),
   invoice_lines: Object.freeze(["Positionen", "Rechnungspositionen", "Tabelle", "lines"])
 });
 
@@ -161,6 +162,7 @@ const FIELD_DEFINITIONS = [
     ["mycompany_idprof5", "Eigene Berufs-ID 5"],
     ["mycompany_idprof6", "Eigene Berufs-ID 6"],
     ["mycompany_vatnumber", "Eigene USt-IdNr."],
+    ["mycompany_taxnumber", "Steuernummer"],
     ["mycompany_object", "Eigener Unternehmenszweck"],
     ["mycompany_note_private", "Eigene interne Notiz"]
   ]),
@@ -198,6 +200,7 @@ const FIELD_DEFINITIONS = [
     ["company_default_bank_iban", "Standard-IBAN"],
     ["company_default_bank_bic", "Standard-BIC"]
   ]),
+  dolibarrField("customercontact", "Ansprechpartner", "company", INVOICE_DOCUMENT_TYPES),
   ...dolibarrFields("user", [
     ["myuser_lastname", "Benutzer-Nachname"],
     ["myuser_firstname", "Benutzer-Vorname"],
@@ -229,6 +232,7 @@ const FIELD_DEFINITIONS = [
     ["object_note_public", "Öffentliche Objektnotiz"],
     ["object_note", "Objektnotiz"],
     ["object_date", "Objektdatum", ALL_DOCUMENT_TYPES],
+    ["vatrate", "USt.-Satz"],
     ["object_total_ht", "Gesamt netto"],
     ["object_total_vat", "Gesamt USt."],
     ["object_total_localtax1", "Gesamt lokale Steuer 1"],

@@ -20,6 +20,7 @@ Mit dem Editor lassen sich A4-Dokumentlayouts visuell gestalten, Dolibarr-Felder
 - Lokale Hintergrundbilder
 - Dolibarr-Feldbibliothek mit Core-Feldern, benutzerdefinierten Feldern, Aliasen und generischen Extrafeld-Mustern
 - Feldsuche, Dokumenttyp-Filter, Empfehlungen und kontextabhängige Bezeichnungen
+- Erweiterte/allgemeine Felder wie `customercontact`, `vatrate`, `mycompany_taxnumber`, `page_current` und `page_count`
 - Editor für die Rechnungstabelle mit Spaltenbreiten, Ausrichtung, Umbruch und Zeilenlayout-Vorschau
 - Unabhängige einseitige und mehrseitige Layout-Templates: `single`, `first`, `middle` und `last`
 - Schriftart, Schriftgröße, Schriftschnitt, Textfarbe, Ausrichtung und mehrzeiliger Text
@@ -43,9 +44,33 @@ Der Creator definiert, wo Inhalte erscheinen: Templates, Hintergründe, Felder, 
 
 Der Creator unterstützt unabhängige einseitige und mehrseitige Layouts. Mehrseiten-Projekte verwenden getrennte Templates für erste Seite, Zwischenseite und letzte Seite. Die Zwischenseite dient als wiederverwendbare Vorlage für beliebig viele Zwischenseiten. Die tatsächliche Laufzeit-Paginierung übernimmt der PDF-Renderer; er entscheidet, ob `single` oder `first` + `middle` 0..N-mal + `last` verwendet wird, und erzeugt das eigentliche PDF.
 
+Jedes Template unterstützt höchstens eine `invoice_lines`-Tabelle. Beim Kopieren zwischen Templates erhält jedes Element eine neue interne `uid`; semantische Feld-IDs bleiben erhalten.
+
 ## Aktueller Stand
 
-Die einseitigen und mehrseitigen Layout-Workflows, das Feldmapping, die Rechnungstabelle, JSON-Import/-Export und der lokale Recovery-Workflow sind verfügbar. Die Laufzeitverteilung der Seiten bleibt Aufgabe des PDF-Renderers.
+Der aktuelle Creator- und Renderer-Kernbereich ist stabil und funktioniert für den dokumentierten Rechnungs-Workflow. Der Creator bietet ein- und mehrseitige Layoutbearbeitung, Feldmapping, Rechnungstabellen, JSON-Import/-Export und lokale Wiederherstellung. Es wird nicht behauptet, dass jedes mögliche Dolibarr-Feld unterstützt wird; dynamische Zeilen-Paginierung wird vom Renderer derzeit noch nicht unterstützt.
+
+## Renderer
+
+Der begleitende Dolibarr-PDF-Renderer verarbeitet das exportierte Template. Passt eine Rechnung auf eine Seite, verwendet er den Pfad `single`; andernfalls `first` + `middle` 0..N-mal + `last`. Er führt die Positionsnummerierung fortlaufend weiter, löst unterstützte Standard-, benutzerdefinierte und Extrafeld-IDs auf und unterstützt `page_current` / `page_count`.
+
+Der Renderer berücksichtigt Feldkoordinaten und Formatierungen aus dem Creator, verwendet templatespezifische Hintergrundbilder und unterstützt derzeit Paginierung mit festen Zeilen. Der dynamische Zeilenmodus ist für die Layoutarbeit im Creator verfügbar, wird vom Renderer aber noch nicht unterstützt.
+
+## Branchen-Feldpakete
+
+Branchen-Feldpakete werden dynamisch aus `data/fieldpacks/index.json` geladen. Enthalten ist derzeit `Kfz / Werkstatt` mit `vehiclemodel`, `vehicleplate`, `vehiclevin`, `vehicleodometer` und `vehiclefirstregistration`. Ein Dolibarr-Extrafeld mit dem Code `vehicleplate` wird zu `object_options_vehicleplate`.
+
+Für eine weitere Branche werden nur eine JSON-Datei und ein Eintrag im Index benötigt; eine JavaScript-Änderung ist nicht erforderlich. Ein minimales Paket enthält `version`, `id`, `name` und `fields`. Felder können eine direkte semantische `id` oder eine Dolibarr-Extrafeld-Definition verwenden, zum Beispiel:
+
+```json
+{
+  "source": "dolibarr_extrafield",
+  "code": "vehicleplate",
+  "name": "Kennzeichen",
+  "type": "text",
+  "documentTypes": ["invoice"]
+}
+```
 
 ## Autosave und Recovery
 
@@ -55,7 +80,7 @@ Binäre Daten von Hintergrundbildern werden absichtlich nicht im Autosave gespei
 
 ## Hintergrundbilder
 
-Hintergrundbilder werden vom lokalen Computer geladen. Im exportierten JSON werden nur Dateiname bzw. Referenz-Metadaten gespeichert, nicht die Bilddaten selbst. Nach Import oder Recovery muss das lokale Bild bei Bedarf erneut ausgewählt werden.
+Jedes Template kann ein eigenes Hintergrundbild verwenden. Im exportierten JSON werden nur Dateiname bzw. Referenz-Metadaten gespeichert, nicht die Bilddaten selbst. Binärdaten von Hintergrundbildern sind auch im Autosave ausgeschlossen; nach Import oder Recovery muss das lokale Bild bei Bedarf erneut ausgewählt werden.
 
 ## Lokale Nutzung
 
@@ -66,6 +91,12 @@ python -m http.server 8001
 ```
 
 Danach [http://127.0.0.1:8001/](http://127.0.0.1:8001/) in einem modernen Browser öffnen.
+
+## Projektstruktur
+
+- `index.html`, `css/` und `js/` enthalten den Browser-Editor.
+- `data/fieldpacks/` enthält dynamisch geladene Branchen-Feldpakete.
+- `README.md` und `README.de.md` enthalten die öffentliche Projektdokumentation.
 
 ## Tastaturkürzel
 

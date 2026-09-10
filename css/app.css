@@ -42,6 +42,8 @@ select, input, textarea { border: 1px solid var(--line); border-radius: 3px; bac
 .field-library-scope input { display: none; }
 .field-library-scope label:has(input:checked) { color: #092018; border-color: var(--accent); background: var(--accent); font-weight: 700; }
 .field-library-search { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .7px; }
+.field-library-industry { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .7px; }
+.field-library-industry select { width: 100%; text-transform: none; letter-spacing: 0; }
 .field-library-search input { width: 100%; text-transform: none; letter-spacing: 0; }
 .field-library { min-height: 0; padding-right: 3px; }
 .field-library-empty { padding: 10px 8px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); background: #172029; font-size: 11px; }

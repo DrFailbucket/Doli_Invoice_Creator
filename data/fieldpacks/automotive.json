@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "id": "automotive",
+  "name": "Kfz / Werkstatt",
+  "fields": [
+    {
+      "source": "dolibarr_extrafield",
+      "code": "vehiclemodel",
+      "name": "Fahrzeug / Modell",
+      "search": ["Fahrzeug", "Modell", "vehicle", "vehiclemodel"],
+      "type": "text",
+      "documentTypes": ["invoice"]
+    },
+    {
+      "source": "dolibarr_extrafield",
+      "code": "vehicleplate",
+      "name": "Kennzeichen",
+      "search": ["Kennzeichen", "Nummernschild", "plate", "vehicleplate"],
+      "type": "text",
+      "documentTypes": ["invoice"]
+    },
+    {
+      "source": "dolibarr_extrafield",
+      "code": "vehiclevin",
+      "name": "FIN / VIN",
+      "search": ["FIN", "VIN", "Fahrgestellnummer", "vehiclevin"],
+      "type": "text",
+      "documentTypes": ["invoice"]
+    },
+    {
+      "source": "dolibarr_extrafield",
+      "code": "vehicleodometer",
+      "name": "Kilometerstand",
+      "search": ["Kilometerstand", "km", "odometer", "vehicleodometer"],
+      "type": "text",
+      "documentTypes": ["invoice"]
+    },
+    {
+      "source": "dolibarr_extrafield",
+      "code": "vehiclefirstregistration",
+      "name": "Erstzulassung",
+      "search": ["Erstzulassung", "EZ", "first registration", "vehiclefirstregistration"],
+      "type": "text",
+      "documentTypes": ["invoice"]
+    }
+  ]
+}
