@@ -243,6 +243,9 @@
     "company_zip": { "label": "ZIP code" },
     "company_town": { "label": "City" },
     "company_country": { "label": "Country" },
+    "company_default_bank_iban": { "label": "Customer / Third-party IBAN", "aliases": ["Kunden IBAN", "Kunden-IBAN", "Drittpartei IBAN", "Drittanbieter IBAN", "Standard IBAN", "customer IBAN", "third party IBAN"] },
+    "company_default_bank_bic": { "label": "Customer / Third-party BIC", "aliases": ["Kunden BIC", "Kunden-BIC", "Drittpartei BIC", "Drittanbieter BIC", "Standard BIC", "customer BIC", "third party BIC"] },
+    "object_note_public": { "label": "Public invoice note", "aliases": ["note", "public note", "invoice note", "customer note", "Hinweis", "Rechnungshinweis", "Anmerkung", "\u00f6ffentliche Anmerkung", "\u00f6ffentliche Notiz", "Kundennotiz"] },
     "object_date_limit": { "label": "Due date" },
     "object_date_end": { "label": "Valid until" },
     "object_date_delivery_planed": { "label": "Planned delivery date" },
@@ -254,8 +257,10 @@
     "object_total_ttc": { "label": "Gross total" },
     "object_payment_term": { "label": "Payment terms" },
     "object_payment_mode": { "label": "Payment method" },
-    "object_bank_iban": { "label": "Bank account IBAN" },
-    "object_bank_bic": { "label": "Bank account BIC" }
+    "object_bank_iban": { "label": "Invoice bank account IBAN", "aliases": ["Rechnungs IBAN", "Rechnungs-IBAN", "eigene IBAN", "Bankverbindung", "invoice IBAN", "payment IBAN"] },
+    "object_bank_bic": { "label": "Invoice bank account BIC", "aliases": ["Rechnungs BIC", "Rechnungs-BIC", "eigene BIC", "invoice BIC", "payment BIC"] },
+    "object_bank_label": { "label": "Invoice bank name", "aliases": ["Bank", "Bankname", "Bankbezeichnung", "Rechnungsbank", "invoice bank", "bank name"] },
+    "invoice_qr_code": { "label": "Invoice / Payment QR Code", "aliases": ["QR", "QR code", "Payment QR code", "Invoice QR code", "GiroCode", "EPC", "EPC-QR", "Swiss QR", "Swiss QR code", "ZATCA", "payment QR", "invoice QR", "Zahlungs-QR-Code", "Rechnungs-QR-Code"] }
   },
   "packs": {
     "automotive": {

@@ -98,10 +98,17 @@ const FIELD_DISPLAY_LABEL_OVERRIDES = Object.freeze({
 
 const FIELD_SEARCH_ALIASES = Object.freeze({
   object_date_limit: Object.freeze(["F\u00e4llig", "F\u00e4lligkeitsdatum", "zahlbar bis", "due date"]),
+  object_note_public: Object.freeze(["Hinweis", "Rechnungshinweis", "Anmerkung", "\u00f6ffentliche Anmerkung", "\u00f6ffentliche Notiz", "Kundennotiz", "note", "public note", "invoice note", "customer note"]),
+  company_default_bank_iban: Object.freeze(["Kunden IBAN", "Kunden-IBAN", "Drittpartei IBAN", "Drittanbieter IBAN", "Standard IBAN", "customer IBAN", "third party IBAN"]),
+  company_default_bank_bic: Object.freeze(["Kunden BIC", "Kunden-BIC", "Drittpartei BIC", "Drittanbieter BIC", "Standard BIC", "customer BIC", "third party BIC"]),
   object_payment_term: Object.freeze(["Zahlungsziel", "Zahlungsbedingung", "Zahlungsbedingungen", "payment term", "payment condition"]),
+  object_bank_iban: Object.freeze(["Rechnungs IBAN", "Rechnungs-IBAN", "eigene IBAN", "Bankverbindung", "invoice IBAN", "payment IBAN"]),
+  object_bank_bic: Object.freeze(["Rechnungs BIC", "Rechnungs-BIC", "eigene BIC", "invoice BIC", "payment BIC"]),
+  object_bank_label: Object.freeze(["Bank", "Bankname", "Bankbezeichnung", "Rechnungsbank", "invoice bank", "bank name"]),
   object_total_vat: Object.freeze(["MwSt", "Mehrwertsteuer", "USt", "Umsatzsteuer", "VAT", "tax"]),
   mycompany_vatnumber: Object.freeze(["USt-ID", "USt-IdNr", "VAT ID"]),
   customercontact: Object.freeze(["Kundenansprechpartner"]),
+  invoice_qr_code: Object.freeze(["QR", "QR-Code", "Zahlungs-QR-Code", "Rechnungs-QR-Code", "GiroCode", "EPC", "EPC-QR", "Swiss QR", "Swiss QR-Code", "ZATCA", "payment QR", "invoice QR"]),
   invoice_lines: Object.freeze(["Positionen", "Rechnungspositionen", "Tabelle", "lines"])
 });
 
@@ -372,6 +379,14 @@ const FIELD_DEFINITIONS = [
     label: "Seiten gesamt",
     category: "system",
     documentTypes: ALL_DOCUMENT_TYPES,
+    source: "renderer",
+    recommended: false
+  },
+  {
+    id: "invoice_qr_code",
+    label: "Rechnungs-/Zahlungs-QR-Code",
+    category: "payment",
+    documentTypes: INVOICE_DOCUMENT_TYPES,
     source: "renderer",
     recommended: false
   }

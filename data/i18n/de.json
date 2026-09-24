@@ -243,6 +243,9 @@
     "company_zip": { "label": "Postleitzahl" },
     "company_town": { "label": "Ort" },
     "company_country": { "label": "Land" },
+    "company_default_bank_iban": { "label": "Kunden-/Drittpartei-IBAN", "aliases": ["Kunden IBAN", "Kunden-IBAN", "Drittpartei IBAN", "Drittanbieter IBAN", "Standard IBAN", "customer IBAN", "third party IBAN"] },
+    "company_default_bank_bic": { "label": "Kunden-/Drittpartei-BIC", "aliases": ["Kunden BIC", "Kunden-BIC", "Drittpartei BIC", "Drittanbieter BIC", "Standard BIC", "customer BIC", "third party BIC"] },
+    "object_note_public": { "label": "\u00d6ffentliche Rechnungsnotiz", "aliases": ["Hinweis", "Rechnungshinweis", "Anmerkung", "\u00f6ffentliche Anmerkung", "\u00f6ffentliche Notiz", "Kundennotiz"] },
     "object_date_limit": { "label": "Fälligkeitsdatum" },
     "object_date_end": { "label": "Gültig bis" },
     "object_date_delivery_planed": { "label": "Geplantes Lieferdatum" },
@@ -254,8 +257,10 @@
     "object_total_ttc": { "label": "Gesamt brutto" },
     "object_payment_term": { "label": "Zahlungsbedingung" },
     "object_payment_mode": { "label": "Zahlungsart" },
-    "object_bank_iban": { "label": "Bankverbindung IBAN" },
-    "object_bank_bic": { "label": "Bankverbindung BIC" }
+    "object_bank_iban": { "label": "Rechnungs-Bankverbindung IBAN", "aliases": ["Rechnungs IBAN", "Rechnungs-IBAN", "eigene IBAN", "Bankverbindung", "invoice IBAN", "payment IBAN"] },
+    "object_bank_bic": { "label": "Rechnungs-Bankverbindung BIC", "aliases": ["Rechnungs BIC", "Rechnungs-BIC", "eigene BIC", "invoice BIC", "payment BIC"] },
+    "object_bank_label": { "label": "Rechnungs-Bankbezeichnung", "aliases": ["Bank", "Bankname", "Bankbezeichnung", "Rechnungsbank", "invoice bank", "bank name"] },
+    "invoice_qr_code": { "label": "Rechnungs-/Zahlungs-QR-Code", "aliases": ["QR", "QR-Code", "Zahlungs-QR-Code", "Rechnungs-QR-Code", "GiroCode", "EPC", "EPC-QR", "Swiss QR", "Swiss QR-Code", "ZATCA", "payment QR", "invoice QR"] }
   },
   "packs": {
     "automotive": {
